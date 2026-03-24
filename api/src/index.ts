@@ -17,6 +17,16 @@ const app = express()
 app.disable('x-powered-by')
 app.use(express.json({ limit: '1mb' }))
 
+type ApiRole = 'superadmin' | 'director' | 'professor' | 'student'
+
+const SEED_USERS: Array<{ id: string; email: string; displayName: string; role: ApiRole }> = [
+  { id: 'u-admin', email: 'admin@seminario.com', displayName: 'Admin Sistema', role: 'superadmin' },
+  { id: 'u-director-1', email: 'director@seminario.com', displayName: 'Dir Roberto Alves', role: 'director' },
+  { id: 'u-teacher-1', email: 'professor@seminario.com', displayName: 'Prof Ana Silva', role: 'professor' },
+  { id: 'u-teacher-2', email: 'carlos@seminario.com', displayName: 'Prof Carlos Souza', role: 'professor' },
+  { id: 's-1', email: 'student@seminario.com', displayName: 'Julia Martins', role: 'student' },
+]
+
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -42,6 +52,34 @@ const pool = new Pool({
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true })
+})
+
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({ ok: true })
+})
+
+app.post('/api/login', (req, res) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase()
+  if (!email || !email.includes('@')) {
+    res.status(400).json({ error: 'Invalid input' })
+    return
+  }
+
+  const user = SEED_USERS.find((u) => u.email === email)
+  if (!user) {
+    res.status(401).json({ error: 'User not found' })
+    return
+  }
+
+  res.status(200).json({
+    token: `jwt-token-${user.id}`,
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+    },
+  })
 })
 
 app.get('/db', async (_req, res) => {
