@@ -42,6 +42,10 @@ export const seedData: AppData = {
       active: true,
     },
   ],
+  teachers: [
+    { id: 'u-teacher-1', displayName: 'Prof Ana Silva', email: 'professor@seminario.com', active: true },
+    { id: 'u-teacher-2', displayName: 'Prof Carlos Souza', email: 'carlos@seminario.com', active: true },
+  ],
   students: [
     { id: 's-1', firstName: 'Julia', lastName: 'Martins', classId: 'c-1', active: true },
     { id: 's-2', firstName: 'Pedro', lastName: 'Santos', classId: 'c-1', active: true },

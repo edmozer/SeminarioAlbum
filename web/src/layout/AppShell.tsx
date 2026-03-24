@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Outlet } from 'react-router-dom'
+import { Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { Role } from '../domain/types'
 import { useAppState } from '../state/AppState'
 
@@ -19,6 +19,7 @@ interface MenuItem {
 const MENU: MenuItem[] = [
   { to: '/',        label: 'Dashboard',  icon: '🏠', roles: ['superadmin', 'director', 'professor', 'student'] },
   { to: '/classes', label: 'Classes',    icon: '📚', roles: ['superadmin', 'director', 'professor'] },
+  { to: '/teachers',label: 'Professores',icon: '🧑‍🏫', roles: ['superadmin', 'director'] },
   { to: '/students',label: 'Alunos',     icon: '👥', roles: ['superadmin', 'director', 'professor'] },
   { to: '/grant',   label: 'Conceder',   icon: '🏅', roles: ['superadmin', 'director', 'professor'] },
   { to: '/invites', label: 'Convites',   icon: '✉️',  roles: ['superadmin', 'director', 'professor'] },
@@ -36,6 +37,7 @@ const BOTTOM_NAV_ROLES: Record<Role, string[]> = {
 }
 
 export function AppShell() {
+  const navigate = useNavigate()
   const {
     state: { session },
     dispatch,
@@ -66,7 +68,7 @@ export function AppShell() {
   const handleLogout = () => {
     localStorage.removeItem('album_session')
     dispatch({ type: 'logout' })
-    window.location.href = '/login'
+    navigate('/login', { replace: true })
   }
 
   const sessionCard = (

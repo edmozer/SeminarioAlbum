@@ -14,6 +14,13 @@ export interface UserSession {
   displayName: string
 }
 
+export interface Teacher {
+  id: string
+  displayName: string
+  email: string
+  active: boolean
+}
+
 export interface ClassRoom {
   id: string
   name: string
@@ -78,6 +85,7 @@ export interface AuditLog {
 
 export interface AppData {
   classes: ClassRoom[]
+  teachers: Teacher[]
   students: Student[]
   achievements: Achievement[]
   studentAchievements: StudentAchievement[]

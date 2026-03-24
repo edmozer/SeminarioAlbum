@@ -1,11 +1,43 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { seedData, sessions } from '../domain/seed'
-import type { AppData, Invite, Role, StudentAchievement, UserSession } from '../domain/types'
+import type { Achievement, AchievementCategory, AppData, Invite, Role, StudentAchievement, Teacher, UserSession } from '../domain/types'
 import { emailToPersonName, uid } from '../lib/utils'
 
 const STORAGE_SESSION_KEY = 'album_session'
 const STORAGE_DATA_KEY = 'album_data_v1'
+
+type ApiAchievementRow = {
+  id: string
+  title: string
+  description: string
+  category: string
+  collection: string
+  color: string
+  icon: string
+  image_url?: string | null
+  has_image?: boolean
+  active: boolean
+}
+
+const ACHIEVEMENT_CATEGORIES: AchievementCategory[] = [
+  'Leitura',
+  'Frequencia',
+  'Participacao',
+  'Memorizacao',
+  'Modulo',
+  'Comportamento',
+]
+
+const ACHIEVEMENT_COLORS: Achievement['color'][] = ['clay', 'gold', 'teal', 'olive', 'navy', 'rose']
+
+function coerceCategory(value: string): AchievementCategory {
+  return (ACHIEVEMENT_CATEGORIES.includes(value as AchievementCategory) ? (value as AchievementCategory) : 'Leitura')
+}
+
+function coerceColor(value: string): Achievement['color'] {
+  return (ACHIEVEMENT_COLORS.includes(value as Achievement['color']) ? (value as Achievement['color']) : 'clay')
+}
 
 function safeParseJson<T>(value: string | null): T | null {
   if (!value) return null
@@ -34,6 +66,12 @@ type Action =
   | { type: 'switch-role'; payload: Role }
   | { type: 'select-class'; payload: string | null }
   | { type: 'select-student'; payload: string | null }
+  | { type: 'teacher-create'; payload: { displayName: string; email: string } }
+  | { type: 'teacher-update'; payload: { teacherId: string; displayName: string; email: string } }
+  | { type: 'teacher-toggle'; payload: { teacherId: string; active: boolean } }
+  | { type: 'class-assign-teacher'; payload: { classId: string; teacherId: string } }
+  | { type: 'class-update'; payload: { classId: string; name: string; schedule: string; active: boolean } }
+  | { type: 'achievements-replace'; payload: { achievements: AppData['achievements'] } }
   | { type: 'grant-achievement'; payload: { studentIds: string[]; achievementId: string; note?: string } }
   | { type: 'remove-student-achievement'; payload: { studentAchievementId: string } }
   | { type: 'invite-create'; payload: { email: string; classId: string } }
@@ -45,6 +83,7 @@ interface AppContextValue {
   state: RootState
   dispatch: React.Dispatch<Action>
   visibleClassIds: string[]
+  visibleTeachers: Teacher[]
   visibleStudents: RootState['data']['students']
   visibleInvites: Invite[]
   visibleAchievements: RootState['data']['achievements']
@@ -57,8 +96,9 @@ const AppContext = createContext<AppContextValue | null>(null)
 
 function initialState(): RootState {
   const session = safeParseJson<UserSession>(localStorage.getItem(STORAGE_SESSION_KEY))
-  const persistedData = safeParseJson<AppData>(localStorage.getItem(STORAGE_DATA_KEY))
-  const data = persistedData ?? structuredClone(seedData)
+  const seed = structuredClone(seedData)
+  const persistedData = safeParseJson<Partial<AppData>>(localStorage.getItem(STORAGE_DATA_KEY))
+  const data: AppData = persistedData ? ({ ...seed, ...persistedData } as AppData) : seed
 
   // If we have a session (e.g. professor), we might want to default select a class
   const selectedClassId =
@@ -97,6 +137,175 @@ function appendAudit(base: AppData, actor: UserSession | null, action: string, t
 
 function reducer(state: RootState, action: Action): RootState {
   const isStudent = state.session?.role === 'student'
+
+  if (action.type === 'achievements-replace') {
+    return {
+      ...state,
+      data: {
+        ...state.data,
+        achievements: action.payload.achievements,
+      },
+    }
+  }
+
+  if (action.type === 'teacher-create') {
+    if (!state.session || (state.session.role !== 'director' && state.session.role !== 'superadmin')) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para gerenciar professores.' } }
+    }
+
+    const displayName = action.payload.displayName.trim()
+    const email = action.payload.email.trim().toLowerCase()
+
+    if (!displayName || !email.includes('@')) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Informe nome e email validos.' } }
+    }
+
+    if (state.data.teachers.some((t) => t.email.toLowerCase() === email)) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Ja existe um professor com este email.' } }
+    }
+
+    const teacher: Teacher = {
+      id: uid('u-teacher'),
+      displayName,
+      email,
+      active: true,
+    }
+
+    const dataWithAudit = appendAudit(
+      { ...state.data, teachers: [teacher, ...state.data.teachers] },
+      state.session,
+      'teacher_created',
+      displayName,
+      `Criou professor (${email}).`,
+    )
+
+    return { ...state, data: dataWithAudit, ui: { ...state.ui, toastMessage: 'Professor criado.' } }
+  }
+
+  if (action.type === 'teacher-update') {
+    if (!state.session || (state.session.role !== 'director' && state.session.role !== 'superadmin')) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para gerenciar professores.' } }
+    }
+
+    const displayName = action.payload.displayName.trim()
+    const email = action.payload.email.trim().toLowerCase()
+    if (!displayName || !email.includes('@')) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Informe nome e email validos.' } }
+    }
+
+    const existing = state.data.teachers.find((t) => t.id === action.payload.teacherId)
+    if (!existing) return state
+
+    if (state.data.teachers.some((t) => t.id !== existing.id && t.email.toLowerCase() === email)) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Ja existe um professor com este email.' } }
+    }
+
+    const teachers = state.data.teachers.map((t) =>
+      t.id === existing.id ? { ...t, displayName, email } : t,
+    )
+
+    // Keep class teacherName in sync
+    const classes = state.data.classes.map((c) =>
+      c.teacherId === existing.id ? { ...c, teacherName: displayName } : c,
+    )
+
+    const dataWithAudit = appendAudit(
+      { ...state.data, teachers, classes },
+      state.session,
+      'teacher_updated',
+      displayName,
+      'Atualizou dados do professor.',
+    )
+
+    return { ...state, data: dataWithAudit, ui: { ...state.ui, toastMessage: 'Professor atualizado.' } }
+  }
+
+  if (action.type === 'teacher-toggle') {
+    if (!state.session || (state.session.role !== 'director' && state.session.role !== 'superadmin')) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para gerenciar professores.' } }
+    }
+
+    const existing = state.data.teachers.find((t) => t.id === action.payload.teacherId)
+    if (!existing) return state
+
+    const teachers = state.data.teachers.map((t) =>
+      t.id === existing.id ? { ...t, active: action.payload.active } : t,
+    )
+
+    const dataWithAudit = appendAudit(
+      { ...state.data, teachers },
+      state.session,
+      'teacher_status_changed',
+      existing.displayName,
+      action.payload.active ? 'Ativou professor.' : 'Desativou professor.',
+    )
+
+    return { ...state, data: dataWithAudit, ui: { ...state.ui, toastMessage: action.payload.active ? 'Professor ativado.' : 'Professor desativado.' } }
+  }
+
+  if (action.type === 'class-assign-teacher') {
+    if (!state.session || (state.session.role !== 'director' && state.session.role !== 'superadmin')) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para designar professor.' } }
+    }
+
+    const classRoom = state.data.classes.find((c) => c.id === action.payload.classId)
+    const teacher = state.data.teachers.find((t) => t.id === action.payload.teacherId)
+    if (!classRoom || !teacher) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Professor ou classe nao encontrados.' } }
+    }
+
+    const classes = state.data.classes.map((c) =>
+      c.id === classRoom.id ? { ...c, teacherId: teacher.id, teacherName: teacher.displayName } : c,
+    )
+
+    const dataWithAudit = appendAudit(
+      { ...state.data, classes },
+      state.session,
+      'class_teacher_assigned',
+      classRoom.name,
+      `Designou ${teacher.displayName} para a classe.`,
+    )
+
+    return { ...state, data: dataWithAudit, ui: { ...state.ui, toastMessage: 'Professor designado.' } }
+  }
+
+  if (action.type === 'class-update') {
+    if (!state.session) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem sessao.' } }
+    }
+
+    const classRoom = state.data.classes.find((c) => c.id === action.payload.classId)
+    if (!classRoom) return state
+
+    const canEdit =
+      state.session.role === 'superadmin' ||
+      state.session.role === 'director' ||
+      (state.session.role === 'professor' && classRoom.teacherId === state.session.userId)
+
+    if (!canEdit) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para editar classe.' } }
+    }
+
+    const name = action.payload.name.trim()
+    const schedule = action.payload.schedule.trim()
+    if (!name || !schedule) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Informe nome e horario.' } }
+    }
+
+    const classes = state.data.classes.map((c) =>
+      c.id === classRoom.id ? { ...c, name, schedule, active: action.payload.active } : c,
+    )
+
+    const dataWithAudit = appendAudit(
+      { ...state.data, classes },
+      state.session,
+      'class_updated',
+      classRoom.name,
+      'Atualizou dados da classe.',
+    )
+
+    return { ...state, data: dataWithAudit, ui: { ...state.ui, toastMessage: 'Classe atualizada.' } }
+  }
 
   if (action.type === 'login') {
     return {
@@ -349,6 +558,39 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
   const [toastTimer, setToastTimer] = useState<number | null>(null)
 
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+
+  useEffect(() => {
+    // Load achievements from backend (source of truth)
+    ;(async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/achievements`)
+        if (!res.ok) return
+        const json = await res.json()
+        const list: ApiAchievementRow[] = Array.isArray(json?.achievements) ? (json.achievements as ApiAchievementRow[]) : []
+
+        dispatch({
+          type: 'achievements-replace',
+          payload: {
+            achievements: list.map((row) => ({
+              id: String(row.id),
+              title: String(row.title ?? ''),
+              description: String(row.description ?? ''),
+              category: coerceCategory(String(row.category ?? '')),
+              collection: String(row.collection ?? ''),
+              color: coerceColor(String(row.color ?? 'clay')),
+              icon: String(row.icon ?? '🏅'),
+              imageUrl: row.has_image ? `${apiBase}/api/achievements/${String(row.id)}/image` : (row.image_url ? String(row.image_url) : undefined),
+              active: Boolean(row.active),
+            })),
+          },
+        })
+      } catch {
+        // ignore; fallback to local seed/localStorage
+      }
+    })()
+  }, [apiBase])
+
   // Prototype-grade persistence for demo: keeps changes on refresh.
   useEffect(() => {
     if (state.session) {
@@ -382,6 +624,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         state,
         dispatch,
         visibleClassIds: [],
+        visibleTeachers: [],
         visibleStudents: [],
         visibleInvites: [],
         visibleAchievements: [],
@@ -390,6 +633,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setToast,
       }
     }
+
+    const visibleTeachers =
+      state.session.role === 'superadmin' || state.session.role === 'director'
+        ? state.data.teachers
+        : state.session.role === 'professor'
+          ? state.data.teachers.filter((t) => t.id === state.session?.userId)
+          : []
 
     const visibleClassIds =
       state.session.role === 'professor'
@@ -423,6 +673,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       state,
       dispatch,
       visibleClassIds,
+      visibleTeachers,
       visibleStudents,
       visibleInvites,
       visibleAchievements,

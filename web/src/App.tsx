@@ -14,6 +14,7 @@ import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { StudentDetailPage } from './pages/StudentDetailPage'
 import { StudentsPage } from './pages/StudentsPage'
+import { TeachersPage } from './pages/TeachersPage'
 import { useAppState } from './state/AppState'
 
 function RoleGuard({
@@ -49,6 +50,7 @@ function App() {
           <Route path="classes" element={<RoleGuard allow={['superadmin', 'director', 'professor']}><ClassesPage /></RoleGuard>} />
           <Route path="students" element={<RoleGuard allow={['superadmin', 'director', 'professor']}><StudentsPage /></RoleGuard>} />
           <Route path="students/:studentId" element={<RoleGuard allow={['superadmin', 'director', 'professor']}><StudentDetailPage /></RoleGuard>} />
+          <Route path="teachers" element={<RoleGuard allow={['superadmin', 'director']}><TeachersPage /></RoleGuard>} />
           <Route path="grant" element={<RoleGuard allow={['superadmin', 'director', 'professor']}><GrantPage /></RoleGuard>} />
           <Route path="invites" element={<RoleGuard allow={['superadmin', 'director', 'professor']}><InvitesPage /></RoleGuard>} />
           <Route path="album" element={<RoleGuard allow={['superadmin', 'student']}><AlbumPage /></RoleGuard>} />

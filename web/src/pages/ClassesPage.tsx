@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAppState } from '../state/AppState'
 
@@ -14,13 +14,46 @@ const CLASS_COLORS = [
 
 export function ClassesPage() {
   const {
-    state: { data },
+    state: { data, session },
     visibleClassIds,
     activeStudentAchievements,
     visibleAchievements,
     selectedClassId,
     dispatch,
   } = useAppState()
+
+  const canManageTeachers = session?.role === 'director' || session?.role === 'superadmin'
+  const canEditClass = session?.role === 'director' || session?.role === 'superadmin' || session?.role === 'professor'
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draftName, setDraftName] = useState('')
+  const [draftSchedule, setDraftSchedule] = useState('')
+  const [draftActive, setDraftActive] = useState(true)
+
+  function startEdit(classId: string) {
+    const c = data.classes.find((item) => item.id === classId)
+    if (!c) return
+    setEditingId(classId)
+    setDraftName(c.name)
+    setDraftSchedule(c.schedule)
+    setDraftActive(c.active)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setDraftName('')
+    setDraftSchedule('')
+    setDraftActive(true)
+  }
+
+  function saveEdit() {
+    if (!editingId) return
+    dispatch({
+      type: 'class-update',
+      payload: { classId: editingId, name: draftName, schedule: draftSchedule, active: draftActive },
+    })
+    cancelEdit()
+  }
 
   const classes = useMemo(
     () => data.classes.filter((item) => visibleClassIds.includes(item.id)),
@@ -61,6 +94,11 @@ export function ClassesPage() {
           const pct = maxPossible > 0 ? Math.round((grantedCount / maxPossible) * 100) : 0
 
           const isSelected = selectedClassId === item.id
+          const isEditing = editingId === item.id
+
+          const canEditThisClass =
+            canEditClass &&
+            (session?.role === 'director' || session?.role === 'superadmin' || (session?.role === 'professor' && item.teacherId === session.userId))
 
           return (
             <article
@@ -99,12 +137,87 @@ export function ClassesPage() {
 
               {/* Name + meta */}
               <div className="class-card-body">
-                <h4 className="class-card-name">{item.name}</h4>
-                <p className="muted class-card-meta">
-                  <span>{item.teacherName}</span>
-                  <span className="class-card-dot">·</span>
-                  <span>{item.schedule}</span>
-                </p>
+                {isEditing ? (
+                  <div className="form-grid">
+                    <div className="field">
+                      <label htmlFor={`class-name-${item.id}`}>Nome</label>
+                      <input
+                        id={`class-name-${item.id}`}
+                        value={draftName}
+                        onChange={(e) => setDraftName(e.target.value)}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`class-schedule-${item.id}`}>Horario</label>
+                      <input
+                        id={`class-schedule-${item.id}`}
+                        value={draftSchedule}
+                        onChange={(e) => setDraftSchedule(e.target.value)}
+                        placeholder="Ex: Dom 06:00"
+                      />
+                    </div>
+                    <label className="check-row" style={{ marginTop: 2 }}>
+                      <input
+                        type="checkbox"
+                        checked={draftActive}
+                        onChange={(e) => setDraftActive(e.target.checked)}
+                      />
+                      <span className="line-title" style={{ fontSize: '0.92rem' }}>Classe ativa</span>
+                    </label>
+                    <div className="hero-actions">
+                      <button type="button" className="primary-button" onClick={saveEdit}>Salvar</button>
+                      <button type="button" className="secondary-button" onClick={cancelEdit}>Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h4 className="class-card-name">{item.name}</h4>
+                    <p className="muted class-card-meta">
+                      <span>{item.teacherName}</span>
+                      <span className="class-card-dot">·</span>
+                      <span>{item.schedule}</span>
+                      {!item.active ? (
+                        <>
+                          <span className="class-card-dot">·</span>
+                          <span style={{ color: 'rgba(74,55,40,0.7)', fontWeight: 700 }}>Inativa</span>
+                        </>
+                      ) : null}
+                    </p>
+                  </>
+                )}
+
+                {canManageTeachers ? (
+                  <div className="field" style={{ marginTop: 12 }}>
+                      <label htmlFor={`class-teacher-${item.id}`} className="tiny-label">Professor da classe</label>
+                      <select
+                        id={`class-teacher-${item.id}`}
+                        value={item.teacherId}
+                        onChange={(e) =>
+                          dispatch({
+                            type: 'class-assign-teacher',
+                            payload: { classId: item.id, teacherId: e.target.value },
+                          })
+                        }
+                      >
+                        {data.teachers
+                          .slice()
+                          .sort((a, b) => a.displayName.localeCompare(b.displayName, 'pt-BR'))
+                          .map((t) => (
+                            <option key={t.id} value={t.id} disabled={!t.active && t.id !== item.teacherId}>
+                              {t.displayName}{t.active ? '' : ' (inativo)'}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  ) : null}
+
+                {!isEditing && canEditThisClass ? (
+                  <div className="hero-actions" style={{ marginTop: 12 }}>
+                    <button type="button" className="secondary-button" onClick={() => startEdit(item.id)}>
+                      Editar classe
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               {/* Progress bar */}
