@@ -8,12 +8,14 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      const response = await fetch('http://localhost:3000/api/login', {
+      const response = await fetch(`${apiBase}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -25,12 +27,10 @@ export function LoginPage() {
 
       const data = await response.json()
       
-      console.log('Login successful:', data)
       setToast(`Bem-vindo, ${data.user.displayName || email}`)
       
       // Update app state and persist
       dispatch({ type: 'login', payload: data.user })
-      localStorage.setItem('album_session', JSON.stringify(data.user))
       
       // Redirect to dashboard
       navigate('/')

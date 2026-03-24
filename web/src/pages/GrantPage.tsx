@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppState } from '../state/AppState'
 
 export function GrantPage() {
@@ -10,7 +10,7 @@ export function GrantPage() {
     state: { data },
   } = useAppState()
 
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
+  const [studentSelection, setStudentSelection] = useState<{ key: string; ids: string[] }>({ key: '', ids: [] })
   const [selectedAchievementId, setSelectedAchievementId] = useState<string | null>(null)
   const [note, setNote] = useState('')
 
@@ -20,15 +20,15 @@ export function GrantPage() {
 
   const studentMap = useMemo(() => new Map(visibleStudents.map((item) => [item.id, item])), [visibleStudents])
 
-  // Clear student selection when the visible student list changes (e.g. class switch)
-  useEffect(() => {
-    setSelectedStudentIds([])
-  }, [visibleStudents])
+  const visibleStudentsKey = useMemo(() => visibleStudents.map((item) => item.id).join('|'), [visibleStudents])
+  const selectedStudentIds = studentSelection.key === visibleStudentsKey ? studentSelection.ids : []
 
   function toggleStudent(studentId: string) {
-    setSelectedStudentIds((prev) =>
-      prev.includes(studentId) ? prev.filter((item) => item !== studentId) : [...prev, studentId],
-    )
+    setStudentSelection((prev) => {
+      const base = prev.key === visibleStudentsKey ? prev.ids : []
+      const next = base.includes(studentId) ? base.filter((item) => item !== studentId) : [...base, studentId]
+      return { key: visibleStudentsKey, ids: next }
+    })
   }
 
   function submitGrant() {
@@ -50,7 +50,7 @@ export function GrantPage() {
       },
     })
 
-    setSelectedStudentIds([])
+    setStudentSelection({ key: visibleStudentsKey, ids: [] })
     setSelectedAchievementId(null)
     setNote('')
   }
@@ -63,10 +63,14 @@ export function GrantPage() {
           <p>Fluxo em lote para classe: {selectedClassName}.</p>
         </div>
         <div className="action-row">
-          <button type="button" className="mini-button" onClick={() => setSelectedStudentIds(visibleStudents.map((item) => item.id))}>
+          <button
+            type="button"
+            className="mini-button"
+            onClick={() => setStudentSelection({ key: visibleStudentsKey, ids: visibleStudents.map((item) => item.id) })}
+          >
             Selecionar todos
           </button>
-          <button type="button" className="mini-button" onClick={() => setSelectedStudentIds([])}>
+          <button type="button" className="mini-button" onClick={() => setStudentSelection({ key: visibleStudentsKey, ids: [] })}>
             Limpar
           </button>
         </div>

@@ -1,7 +1,20 @@
-import { createContext, useContext, useMemo, useReducer, useState, type ReactNode } from 'react'
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { seedData, sessions } from '../domain/seed'
 import type { AppData, Invite, Role, StudentAchievement, UserSession } from '../domain/types'
 import { emailToPersonName, uid } from '../lib/utils'
+
+const STORAGE_SESSION_KEY = 'album_session'
+const STORAGE_DATA_KEY = 'album_data_v1'
+
+function safeParseJson<T>(value: string | null): T | null {
+  if (!value) return null
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return null
+  }
+}
 
 interface UIState {
   selectedClassId: string | null
@@ -43,25 +56,18 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null)
 
 function initialState(): RootState {
-  // Try to recover session from local storage
-  let session: UserSession | null = null
-  try {
-    const stored = localStorage.getItem('album_session')
-    if (stored) {
-      session = JSON.parse(stored)
-    }
-  } catch (e) {
-    console.error('Failed to parse session', e)
-  }
+  const session = safeParseJson<UserSession>(localStorage.getItem(STORAGE_SESSION_KEY))
+  const persistedData = safeParseJson<AppData>(localStorage.getItem(STORAGE_DATA_KEY))
+  const data = persistedData ?? structuredClone(seedData)
 
   // If we have a session (e.g. professor), we might want to default select a class
   const selectedClassId =
     session?.role === 'professor'
-      ? seedData.classes.find((item) => item.teacherId === session?.userId)?.id ?? null
+      ? data.classes.find((item) => item.teacherId === session?.userId)?.id ?? null
       : null
 
   return {
-    data: structuredClone(seedData),
+    data,
     session,
     ui: {
       selectedClassId,
@@ -342,6 +348,19 @@ function reducer(state: RootState, action: Action): RootState {
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
   const [toastTimer, setToastTimer] = useState<number | null>(null)
+
+  // Prototype-grade persistence for demo: keeps changes on refresh.
+  useEffect(() => {
+    if (state.session) {
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(state.session))
+    } else {
+      localStorage.removeItem(STORAGE_SESSION_KEY)
+    }
+  }, [state.session])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_DATA_KEY, JSON.stringify(state.data))
+  }, [state.data])
 
   const value = useMemo<AppContextValue>(() => {
     // Helper to avoid circular dependency in useMemo if we defined setToast inside

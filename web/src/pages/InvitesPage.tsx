@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { formatDate } from '../lib/utils'
 import { useAppState } from '../state/AppState'
 
@@ -35,13 +35,10 @@ export function InvitesPage() {
     dispatch,
   } = useAppState()
   const [email, setEmail] = useState('')
-  const [classId, setClassId] = useState<string>(selectedClassId ?? visibleClassIds[0] ?? '')
+  const preferredClassId = selectedClassId ?? visibleClassIds[0] ?? ''
+  const [classSelection, setClassSelection] = useState<{ key: string; value: string }>({ key: '', value: '' })
+  const classId = classSelection.key === preferredClassId ? classSelection.value : preferredClassId
   const [filter, setFilter] = useState<InviteFilter>('all')
-
-  // Keep classId in sync when the global selectedClassId changes (e.g. role switch)
-  useEffect(() => {
-    setClassId(selectedClassId ?? visibleClassIds[0] ?? '')
-  }, [selectedClassId, visibleClassIds])
 
   const classes = useMemo(() => data.classes.filter((item) => visibleClassIds.includes(item.id)), [data.classes, visibleClassIds])
 
@@ -107,7 +104,11 @@ export function InvitesPage() {
 
             <div className="field">
               <label htmlFor="invite-class">Classe</label>
-              <select id="invite-class" value={classId} onChange={(event) => setClassId(event.target.value)}>
+              <select
+                id="invite-class"
+                value={classId}
+                onChange={(event) => setClassSelection({ key: preferredClassId, value: event.target.value })}
+              >
                 <option value="">Selecione uma classe</option>
                 {classes.map((item) => (
                   <option key={item.id} value={item.id}>

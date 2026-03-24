@@ -14,23 +14,37 @@ export function AlbumPage() {
 
   const [shareAchievementId, setShareAchievementId] = useState<string | null>(null)
 
-  if (!session) return null
+  const studentId = useMemo(() => {
+    if (!session) return null
 
-  const allowedStudentIds =
-    session.role === 'student'
-      ? [session.userId]
-      : session.role === 'professor'
-        ? visibleStudents.map((item) => item.id)
-        : data.students.map((item) => item.id)
+    const allowedStudentIds =
+      session.role === 'student'
+        ? [session.userId]
+        : session.role === 'professor'
+          ? visibleStudents.map((item) => item.id)
+          : data.students.map((item) => item.id)
 
-  const requestedStudentId = params.get('studentId')
-  const fallbackStudentId = allowedStudentIds[0] ?? null
-  const studentId =
-    session.role === 'student'
+    const requestedStudentId = params.get('studentId')
+    const fallbackStudentId = allowedStudentIds[0] ?? null
+
+    return session.role === 'student'
       ? session.userId
       : requestedStudentId && allowedStudentIds.includes(requestedStudentId)
         ? requestedStudentId
         : fallbackStudentId
+  }, [data.students, params, session, visibleStudents])
+
+  const earnedMeta = useMemo(() => {
+    const map = new Map<string, { grantedAt?: string }>()
+    if (!studentId) return map
+
+    data.studentAchievements
+      .filter((item) => item.studentId === studentId && item.status === 'granted')
+      .forEach((item) => map.set(item.achievementId, { grantedAt: item.grantedAt }))
+    return map
+  }, [data.studentAchievements, studentId])
+
+  if (!session) return null
 
   if (!studentId) {
     return (
@@ -42,13 +56,7 @@ export function AlbumPage() {
 
   const student = data.students.find((item) => item.id === studentId)
 
-  const earnedMeta = useMemo(() => {
-    const map = new Map<string, { grantedAt?: string }>()
-    data.studentAchievements
-      .filter((item) => item.studentId === studentId && item.status === 'granted')
-      .forEach((item) => map.set(item.achievementId, { grantedAt: item.grantedAt }))
-    return map
-  }, [data.studentAchievements, studentId])
+  
 
   if (!student) {
     return (
