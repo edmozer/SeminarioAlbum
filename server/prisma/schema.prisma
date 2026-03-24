@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Models based on web/src/domain/types.ts
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  name        String
+  role        String   // 'superadmin' | 'director' | 'professor'
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  classes     Class[]
+  invites     Invite[]
+  auditLogs   AuditLog[]
+}
+
+model Class {
+  id          String   @id @default(uuid())
+  name        String
+  schedule    String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  teacherId   String
+  teacher     User     @relation(fields: [teacherId], references: [id])
+
+  students    Student[]
+  invites     Invite[]
+}
+
+model Student {
+  id          String   @id @default(uuid())
+  firstName   String
+  lastName    String
+  email       String?  @unique // Optional because not all students might have email initially? Or required for login.
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  classId     String
+  class       Class    @relation(fields: [classId], references: [id])
+
+  achievements StudentAchievement[]
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  category    String   // 'Leitura', 'Frequencia', etc.
+  collection  String
+  color       String   // 'clay', 'gold', etc.
+  icon        String
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  studentAchievements StudentAchievement[]
+}
+
+model StudentAchievement {
+  id            String   @id @default(uuid())
+  status        String   // 'granted', 'removed'
+  grantedAt     DateTime @default(now())
+  removedAt     DateTime?
+  note          String?
+
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id])
+
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+
+  grantedBy     String   // Stores name for history
+  grantedByRole String
+}
+
+model Invite {
+  id          String   @id @default(uuid())
+  email       String
+  token       String   @unique
+  status      String   // 'pending', 'accepted', 'cancelled', 'expired'
+  createdAt   DateTime @default(now())
+  acceptedAt  DateTime?
+
+  classId     String
+  class       Class    @relation(fields: [classId], references: [id])
+
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String
+  target      String
+  details     String
+  createdAt   DateTime @default(now())
+
+  actorId     String?
+  actorRole   String
+  actorName   String   // Snapshot of name at time of action
+  
+  actor       User?    @relation(fields: [actorId], references: [id])
+}

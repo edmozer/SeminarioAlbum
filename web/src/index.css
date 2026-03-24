@@ -1,7 +1,7 @@
 /* ============================================================
    DESIGN TOKENS
    Inspired by conquista-app: warm cream bg, white cards,
-   brand-orange accent, Playfair Display for headings.
+   brand-orange accent, Fraunces for display headings.
    ============================================================ */
 :root {
   /* Brand */
@@ -45,7 +45,10 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Typography */
-  font-family: 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-sans: 'Plus Jakarta Sans', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+
+  font-family: var(--font-sans);
   color: var(--ink);
 }
 
@@ -177,7 +180,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 .brand h1 {
-  font-family: 'Playfair Display', 'Fraunces', serif;
+  font-family: var(--font-display);
   font-size: 1.4rem;
   line-height: 1.1;
   color: var(--ink);
@@ -193,7 +196,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 /* ============================================================
-   TYPOGRAPHY — display headings use Playfair Display
+   TYPOGRAPHY — display headings use Fraunces
    ============================================================ */
 .brand h1,
 .hero-copy h2,
@@ -201,7 +204,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .detail-title,
 .sticker-title,
 .display {
-  font-family: 'Playfair Display', 'Fraunces', serif;
+  font-family: var(--font-display);
   line-height: 1.1;
 }
 
@@ -344,6 +347,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
    ============================================================ */
 .side-stack { display: grid; gap: 10px; }
 
+/* Session placement:
+   - <1200px: show session panel below main
+   - >=1200px: show session inside the sidebar
+*/
+.session-panel {
+  border-radius: var(--radius-xl);
+  padding: 20px;
+}
+
+.session-slot--sidebar { display: none; }
+
+@media (min-width: 1200px) {
+  .session-panel { display: none; }
+  .session-slot--sidebar { display: grid; }
+}
+
 .side-card {
   border-radius: var(--radius-md);
   padding: 14px 16px;
@@ -407,7 +426,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .kpi-card strong {
   display: block;
   margin-top: 8px;
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-display);
   font-size: 2rem;
   color: var(--ink);
   line-height: 1;
@@ -1122,7 +1141,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .class-card-body { display: grid; gap: 4px; }
 
 .class-card-name {
-  font-family: 'Playfair Display', 'Fraunces', serif;
+  font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.2;

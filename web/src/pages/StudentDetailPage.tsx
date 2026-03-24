@@ -13,6 +13,8 @@ export function StudentDetailPage() {
 
   const student = data.students.find((item) => item.id === studentId)
 
+  if (!session) return null
+
   if (session.role === 'professor' && studentId && !visibleStudents.some((item) => item.id === studentId)) {
     return (
       <section className="empty-state">

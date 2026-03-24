@@ -1,5 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { sessions } from '../domain/seed'
+import { Navigate, NavLink, Outlet } from 'react-router-dom'
 import type { Role } from '../domain/types'
 import { useAppState } from '../state/AppState'
 
@@ -23,16 +22,16 @@ const MENU: MenuItem[] = [
   { to: '/students',label: 'Alunos',     icon: '👥', roles: ['superadmin', 'director', 'professor'] },
   { to: '/grant',   label: 'Conceder',   icon: '🏅', roles: ['superadmin', 'director', 'professor'] },
   { to: '/invites', label: 'Convites',   icon: '✉️',  roles: ['superadmin', 'director', 'professor'] },
-  { to: '/album',   label: 'Álbum',      icon: '🎖️', roles: ['superadmin', 'director', 'professor', 'student'] },
+  { to: '/album',   label: 'Álbum',      icon: '🎖️', roles: ['superadmin', 'student'] }, // Removed 'director'/'professor' from Album unless they are viewing specific student
   { to: '/catalog', label: 'Catálogo',   icon: '🗂️', roles: ['superadmin', 'director'] },
   { to: '/audit',   label: 'Auditoria',  icon: '📋', roles: ['superadmin', 'director'] },
 ]
 
 // Items shown in the mobile bottom nav (most important, max 5)
-const BOTTOM_NAV_ROLES: Record<Role, MenuItem['to'][]> = {
-  superadmin: ['/', '/students', '/grant', '/invites', '/audit'],
-  director:   ['/', '/students', '/invites', '/album', '/catalog'],
-  professor:  ['/', '/students', '/grant', '/invites', '/album'],
+const BOTTOM_NAV_ROLES: Record<Role, string[]> = {
+  superadmin: ['/', '/classes', '/students', '/grant', '/audit'],
+  director:   ['/', '/classes', '/students', '/invites', '/catalog'],
+  professor:  ['/', '/classes', '/students', '/grant', '/invites'],
   student:    ['/', '/album'],
 }
 
@@ -43,6 +42,9 @@ export function AppShell() {
     selectedClassId,
     state,
   } = useAppState()
+
+  // Redirect to login if no session (handled by AuthGuard usually, but safe check)
+  if (!session) return <Navigate to="/login" replace />
 
   const studentClassName =
     session.role === 'student'
@@ -58,8 +60,30 @@ export function AppShell() {
   const visibleMenu = MENU.filter((item) => item.roles.includes(session.role))
   const bottomNavPaths = BOTTOM_NAV_ROLES[session.role]
   const bottomNavItems = bottomNavPaths
-    .map((path) => visibleMenu.find((m) => m.to === path))
+    .map((path) => MENU.find((m) => m.to === path)) // Use MENU directly to find item
     .filter(Boolean) as MenuItem[]
+
+  const handleLogout = () => {
+    localStorage.removeItem('album_session')
+    dispatch({ type: 'logout' })
+    window.location.href = '/login'
+  }
+
+  const sessionCard = (
+    <div className="side-card">
+      <p className="eyebrow">Sessão</p>
+      <p className="line-title" style={{ marginTop: 6 }}>{session.displayName}</p>
+      <p className="muted">Perfil: {ROLE_LABELS[session.role]}</p>
+      {studentClassName ? <p className="muted" style={{ marginTop: 4 }}>Classe: {studentClassName}</p> : null}
+      <button
+        onClick={handleLogout}
+        className="mini-button"
+        style={{ marginTop: '12px', width: '100%', justifyContent: 'center', borderColor: 'rgba(74,55,40,0.2)' }}
+      >
+        Sair
+      </button>
+    </div>
+  )
 
   return (
     <div className="app-shell">
@@ -89,29 +113,8 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="side-stack">
-          <div className="side-card">
-            <p className="eyebrow">Sessão</p>
-            <p className="line-title" style={{ marginTop: 6 }}>{session.displayName}</p>
-            <p className="muted">Perfil: {ROLE_LABELS[session.role]}</p>
-            {studentClassName ? <p className="muted" style={{ marginTop: 4 }}>Classe: {studentClassName}</p> : null}
-          </div>
-
-          {session.role !== 'student' && (
-            <div className="role-switcher">
-              {(Object.keys(sessions) as Role[]).map((role) => (
-                <button
-                  key={role}
-                  className={`role-button ${session.role === role ? 'active' : ''}`}
-                  onClick={() => dispatch({ type: 'switch-role', payload: role })}
-                  type="button"
-                >
-                  <strong>{ROLE_LABELS[role]}</strong>
-                  <span>{sessions[role].displayName}</span>
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="side-stack session-slot session-slot--sidebar">
+          {sessionCard}
         </div>
       </aside>
 
@@ -119,6 +122,11 @@ export function AppShell() {
       <main className="main">
         <Outlet />
       </main>
+
+      {/* Session card placed below main on stacked layouts */}
+      <aside className="session-panel panel session-slot session-slot--below">
+        <div className="side-stack">{sessionCard}</div>
+      </aside>
 
       {/* ── Bottom nav (mobile only, hidden on ≥760px via CSS) ── */}
       <nav className="bottom-nav" aria-label="Navegação principal">

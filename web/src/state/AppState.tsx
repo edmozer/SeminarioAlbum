@@ -11,11 +11,13 @@ interface UIState {
 
 interface RootState {
   data: AppData
-  session: UserSession
+  session: UserSession | null
   ui: UIState
 }
 
 type Action =
+  | { type: 'login'; payload: UserSession }
+  | { type: 'logout' }
   | { type: 'switch-role'; payload: Role }
   | { type: 'select-class'; payload: string | null }
   | { type: 'select-student'; payload: string | null }
@@ -41,11 +43,26 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null)
 
 function initialState(): RootState {
-  const selectedClassId = seedData.classes.find((item) => item.teacherId === sessions.professor.userId)?.id ?? null
+  // Try to recover session from local storage
+  let session: UserSession | null = null
+  try {
+    const stored = localStorage.getItem('album_session')
+    if (stored) {
+      session = JSON.parse(stored)
+    }
+  } catch (e) {
+    console.error('Failed to parse session', e)
+  }
+
+  // If we have a session (e.g. professor), we might want to default select a class
+  const selectedClassId =
+    session?.role === 'professor'
+      ? seedData.classes.find((item) => item.teacherId === session?.userId)?.id ?? null
+      : null
 
   return {
     data: structuredClone(seedData),
-    session: sessions.professor,
+    session,
     ui: {
       selectedClassId,
       selectedStudentId: null,
@@ -54,15 +71,15 @@ function initialState(): RootState {
   }
 }
 
-function appendAudit(base: AppData, actor: UserSession, action: string, target: string, details: string): AppData {
+function appendAudit(base: AppData, actor: UserSession | null, action: string, target: string, details: string): AppData {
   return {
     ...base,
     auditLogs: [
       {
         id: uid('log'),
         action,
-        actor: actor.displayName,
-        actorRole: actor.role,
+        actor: actor?.displayName ?? 'Unknown',
+        actorRole: actor?.role ?? 'student',
         target,
         createdAt: new Date().toISOString(),
         details,
@@ -73,7 +90,30 @@ function appendAudit(base: AppData, actor: UserSession, action: string, target: 
 }
 
 function reducer(state: RootState, action: Action): RootState {
-  const isStudent = state.session.role === 'student'
+  const isStudent = state.session?.role === 'student'
+
+  if (action.type === 'login') {
+    return {
+      ...state,
+      session: action.payload,
+      ui: {
+        ...state.ui,
+        // Auto-select class for professor
+        selectedClassId:
+          action.payload.role === 'professor'
+            ? state.data.classes.find((item) => item.teacherId === action.payload.userId)?.id ?? null
+            : null,
+      },
+    }
+  }
+
+  if (action.type === 'logout') {
+    return {
+      ...state,
+      session: null,
+      ui: { ...state.ui, selectedClassId: null, selectedStudentId: null },
+    }
+  }
 
   if (action.type === 'switch-role') {
     const session = sessions[action.payload]
@@ -102,9 +142,11 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'grant-achievement') {
-    if (isStudent) {
+    if (isStudent || !state.session) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para conceder.' } }
     }
+    const actor = state.session
+
     const now = new Date().toISOString()
     const current = state.data.studentAchievements
     const entries: StudentAchievement[] = []
@@ -121,8 +163,8 @@ function reducer(state: RootState, action: Action): RootState {
           id: uid('sa'),
           studentId,
           achievementId: action.payload.achievementId,
-          grantedBy: state.session.displayName,
-          grantedByRole: state.session.role,
+          grantedBy: actor.displayName,
+          grantedByRole: actor.role,
           grantedAt: now,
           status: 'granted',
           note: action.payload.note,
@@ -136,7 +178,7 @@ function reducer(state: RootState, action: Action): RootState {
 
     const dataWithAudit = appendAudit(
       { ...state.data, studentAchievements: [...entries, ...state.data.studentAchievements] },
-      state.session,
+      actor,
       'grant_achievement',
       target,
       details,
@@ -153,7 +195,7 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'remove-student-achievement') {
-    if (isStudent) {
+    if (isStudent || !state.session) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para remover.' } }
     }
     const item = state.data.studentAchievements.find((entry) => entry.id === action.payload.studentAchievementId)
@@ -176,9 +218,12 @@ function reducer(state: RootState, action: Action): RootState {
         : entry,
     )
 
+    // Safe access to session (if we are here, isStudent is false, so session should exist for professor/admin)
+    const actor = state.session!
+
     const dataWithAudit = appendAudit(
       { ...state.data, studentAchievements: updated },
-      state.session,
+      actor,
       'remove_achievement',
       studentName,
       `Removeu "${achievementTitle}".`,
@@ -192,7 +237,7 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'invite-create') {
-    if (isStudent) {
+    if (isStudent || !state.session) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para criar convite.' } }
     }
     const invite: Invite = {
@@ -221,7 +266,7 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'invite-cancel') {
-    if (isStudent) {
+    if (isStudent || !state.session) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para cancelar convite.' } }
     }
     const invites = state.data.invites.map((invite) =>
@@ -251,15 +296,15 @@ function reducer(state: RootState, action: Action): RootState {
 
     let students = state.data.students
 
-    if (state.session.role === 'student') {
-      const existing = state.data.students.find((item) => item.id === state.session.userId)
+    if (state.session?.role === 'student') {
+      const existing = state.data.students.find((item) => item.id === state.session?.userId)
       students = existing
         ? state.data.students.map((item) => (item.id === existing.id ? { ...item, classId: invite.classId } : item))
         : [
             {
-              id: state.session.userId,
-              firstName: state.session.displayName.split(' ')[0] ?? 'Aluno',
-              lastName: state.session.displayName.split(' ').slice(1).join(' ') || 'Sem sobrenome',
+              id: state.session!.userId,
+              firstName: state.session!.displayName.split(' ')[0] ?? 'Aluno',
+              lastName: state.session!.displayName.split(' ').slice(1).join(' ') || 'Sem sobrenome',
               classId: invite.classId,
               active: true,
             },
@@ -299,9 +344,37 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [toastTimer, setToastTimer] = useState<number | null>(null)
 
   const value = useMemo<AppContextValue>(() => {
+    // Helper to avoid circular dependency in useMemo if we defined setToast inside
+    // but we can define it inside since dispatch is stable
+    const setToast = (message: string | null) => {
+      dispatch({ type: 'toast', payload: message })
+      if (toastTimer) {
+        window.clearTimeout(toastTimer)
+      }
+      if (message) {
+        const timer = window.setTimeout(() => dispatch({ type: 'toast', payload: null }), 2400)
+        setToastTimer(timer)
+      }
+    }
+
+    // If no session, provide safe defaults
+    if (!state.session) {
+      return {
+        state,
+        dispatch,
+        visibleClassIds: [],
+        visibleStudents: [],
+        visibleInvites: [],
+        visibleAchievements: [],
+        activeStudentAchievements: [],
+        selectedClassId: null,
+        setToast,
+      }
+    }
+
     const visibleClassIds =
       state.session.role === 'professor'
-        ? state.data.classes.filter((item) => item.teacherId === state.session.userId).map((item) => item.id)
+        ? state.data.classes.filter((item) => item.teacherId === state.session?.userId).map((item) => item.id)
         : state.data.classes.map((item) => item.id)
 
     const selectedClassId =
@@ -311,7 +384,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
     const visibleStudents =
       state.session.role === 'student'
-        ? state.data.students.filter((student) => student.id === state.session.userId)
+        ? state.data.students.filter((student) => student.id === state.session?.userId)
         : selectedClassId
           ? state.data.students.filter((student) => student.classId === selectedClassId)
           : state.data.students
@@ -326,17 +399,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     const visibleAchievements = state.data.achievements.filter((achievement) => achievement.active)
 
     const activeStudentAchievements = state.data.studentAchievements.filter((item) => item.status === 'granted')
-
-    const setToast = (message: string | null) => {
-      dispatch({ type: 'toast', payload: message })
-      if (toastTimer) {
-        window.clearTimeout(toastTimer)
-      }
-      if (message) {
-        const timer = window.setTimeout(() => dispatch({ type: 'toast', payload: null }), 2400)
-        setToastTimer(timer)
-      }
-    }
 
     return {
       state,

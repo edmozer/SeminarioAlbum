@@ -137,7 +137,7 @@ function drawStory(
   const headerY = frameY + 78
 
   ctx.fillStyle = muted
-  ctx.font = '700 30px "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif'
+  ctx.font = '700 30px "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, sans-serif'
   ctx.fillText('ALBUM DE CONQUISTAS', headerX, headerY)
 
   ctx.fillStyle = ink
@@ -145,7 +145,7 @@ function drawStory(
   ctx.fillText(payload.achievement.title.slice(0, 28), headerX, headerY + 86)
 
   ctx.fillStyle = muted
-  ctx.font = '600 34px "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif'
+  ctx.font = '600 34px "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, sans-serif'
   const subtitle = `${payload.student.firstName} ${payload.student.lastName}  •  ${payload.achievement.collection}`
   ctx.fillText(subtitle, headerX, headerY + 140)
 
@@ -191,7 +191,7 @@ function drawStory(
 
   if (!payload.photo) {
     ctx.fillStyle = 'rgba(34, 50, 40, 0.52)'
-    ctx.font = '700 44px "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif'
+    ctx.font = '700 44px "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('FOTO AQUI (em breve)', photoX + photoW / 2, photoY + photoH / 2)
     ctx.textAlign = 'left'
@@ -209,7 +209,7 @@ function drawStory(
   ctx.fill()
 
   ctx.fillStyle = '#ffffff'
-  ctx.font = '700 84px "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif'
+  ctx.font = '700 84px "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillText(payload.achievement.icon, badgeCX, badgeCY + 28)
   ctx.textAlign = 'left'
@@ -221,14 +221,14 @@ function drawStory(
   ctx.fillText(payload.achievement.category, footerX, footerY)
 
   ctx.fillStyle = muted
-  ctx.font = '600 34px "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif'
+  ctx.font = '600 34px "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, sans-serif'
   const dateText = formatStoryDate(payload.grantedAt)
   ctx.fillText(dateText ? `Conquistado em ${dateText}` : 'Conquista desbloqueada', footerX, footerY + 54)
 
   ctx.save()
   ctx.globalAlpha = 0.24
   ctx.fillStyle = ink
-  ctx.font = '700 26px "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif'
+  ctx.font = '700 26px "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, sans-serif'
   ctx.textAlign = 'right'
   ctx.fillText('ALBUM', frameX + frameW - 64, frameY + frameH - 64)
   ctx.restore()

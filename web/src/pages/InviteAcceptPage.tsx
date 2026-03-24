@@ -53,7 +53,7 @@ export function InviteAcceptPage() {
               Aceitar (simulado)
             </button>
           ) : null}
-          {session.role === 'student' ? (
+          {session?.role === 'student' ? (
             <Link to="/album" className="secondary-button">
               Ir para meu album
             </Link>

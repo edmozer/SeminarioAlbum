@@ -14,6 +14,8 @@ export function AlbumPage() {
 
   const [shareAchievementId, setShareAchievementId] = useState<string | null>(null)
 
+  if (!session) return null
+
   const allowedStudentIds =
     session.role === 'student'
       ? [session.userId]

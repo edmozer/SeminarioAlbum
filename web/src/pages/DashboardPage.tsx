@@ -22,6 +22,8 @@ export function DashboardPage() {
     visibleAchievements,
   } = useAppState()
 
+  if (!session) return null
+
   const scopeStudentIds =
     session.role === 'student'
       ? [session.userId]
