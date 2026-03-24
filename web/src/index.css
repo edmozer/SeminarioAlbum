@@ -1,0 +1,1225 @@
+/* ============================================================
+   DESIGN TOKENS
+   Inspired by conquista-app: warm cream bg, white cards,
+   brand-orange accent, Playfair Display for headings.
+   ============================================================ */
+:root {
+  /* Brand */
+  --orange:        #f27d26;
+  --orange-light:  #fde8d0;
+  --orange-shadow: rgba(242, 125, 38, 0.28);
+  --orange-muted:  rgba(242, 125, 38, 0.12);
+
+  /* Surfaces */
+  --bg:            #fdf6e9;
+  --bg-deep:       #f5e9d0;
+  --card:          #ffffff;
+  --card-border:   rgba(242, 125, 38, 0.14);
+  --line:          rgba(74, 55, 40, 0.1);
+
+  /* Text */
+  --ink:           #4a3728;
+  --muted:         #8e7d71;
+
+  /* Category colours (kept for sticker badges) */
+  --clay:   #c8643f;
+  --gold:   #cd9f37;
+  --teal:   #2c7a69;
+  --olive:  #71893c;
+  --navy:   #2e4c66;
+  --rose:   #b85d67;
+
+  /* Radius */
+  --radius-xl: 32px;
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --radius-sm: 14px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow:      0 4px 24px rgba(74, 55, 40, 0.10);
+  --shadow-soft: 0 2px 12px rgba(74, 55, 40, 0.07);
+  --shadow-orange: 0 12px 28px var(--orange-shadow);
+
+  /* Easing */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Typography */
+  font-family: 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
+  color: var(--ink);
+}
+
+/* ============================================================
+   RESET / BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { overflow-x: hidden; }
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Subtle dot-grid overlay — from conquista-app ShareModal */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 2px 2px, rgba(242,125,38,0.06) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+a { color: inherit; text-decoration: none; }
+
+h1, h2, h3, h4, p { margin: 0; }
+
+button, input, select, textarea { font: inherit; }
+
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+
+/* Interactive element transition */
+button,
+.nav-button,
+.role-button,
+.mini-button,
+.primary-button,
+.secondary-button,
+.filter-chip,
+.achievement-option,
+.sticker-clickable {
+  border: 0;
+  cursor: pointer;
+  transition:
+    transform 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out),
+    background 180ms var(--ease-out),
+    opacity 180ms var(--ease-out);
+  touch-action: manipulation;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .primary-button:hover,
+  .secondary-button:hover { transform: translateY(-2px); box-shadow: var(--shadow-orange); }
+
+  .mini-button:hover,
+  .filter-chip:hover,
+  .role-button:hover { transform: translateY(-1px); }
+
+  .sticker-clickable:not(.locked):hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+}
+
+button:active { transform: scale(0.97) !important; }
+
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(242, 125, 38, 0.4);
+  outline-offset: 2px;
+}
+
+#root { position: relative; z-index: 1; min-height: 100svh; }
+
+/* ============================================================
+   APP SHELL (sidebar layout on desktop, stacked on mobile)
+   ============================================================ */
+.app-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  padding: 16px;
+  padding-bottom: 90px; /* space for bottom-nav on mobile */
+}
+
+/* ============================================================
+   SIDEBAR / PANEL
+   ============================================================ */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow);
+}
+
+.sidebar {
+  position: static;
+  height: auto;
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* ============================================================
+   BRAND MARK
+   ============================================================ */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--orange), #f5a55a);
+  color: white;
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  box-shadow: var(--shadow-orange);
+}
+
+.brand h1 {
+  font-family: 'Playfair Display', 'Fraunces', serif;
+  font-size: 1.4rem;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+/* ============================================================
+   TYPOGRAPHY — display headings use Playfair Display
+   ============================================================ */
+.brand h1,
+.hero-copy h2,
+.screen-head h3,
+.detail-title,
+.sticker-title,
+.display {
+  font-family: 'Playfair Display', 'Fraunces', serif;
+  line-height: 1.1;
+}
+
+/* ============================================================
+   NAV LIST
+   ============================================================ */
+.nav-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nav-button {
+  border-radius: var(--radius-md);
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: center;
+  gap: 10px;
+  background: rgba(242, 125, 38, 0.06);
+  border: 1px solid transparent;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.nav-button strong { font-size: 0.82rem; }
+
+.nav-button.active {
+  background: var(--orange-muted);
+  border-color: rgba(242, 125, 38, 0.28);
+  color: var(--orange);
+}
+
+/* ============================================================
+   NAV ICON / AVATAR / STICKER BADGE
+   ============================================================ */
+.nav-icon,
+.avatar,
+.avatar-large,
+.sticker-badge {
+  border-radius: 14px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 700;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.avatar-large {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  font-size: 1.4rem;
+}
+
+/* Circle variant for achievement icons (conquista-app style) */
+.achievement-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border-width: 3px;
+  border-style: solid;
+  font-weight: 700;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.achievement-circle.unlocked {
+  border-color: var(--orange);
+  color: var(--orange);
+  background: var(--orange-muted);
+}
+
+.achievement-circle.locked {
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  background: #f1f5f9;
+}
+
+/* Gradient badge colours */
+.nav-icon.clay, .sticker-badge.clay    { background: linear-gradient(135deg, var(--clay), #d98458); }
+.sticker-badge.gold                    { background: linear-gradient(135deg, var(--gold), #e3bb59); }
+.sticker-badge.teal                    { background: linear-gradient(135deg, var(--teal), #4a9d8b); }
+.sticker-badge.olive                   { background: linear-gradient(135deg, var(--olive), #92a956); }
+.sticker-badge.navy                    { background: linear-gradient(135deg, var(--navy), #507395); }
+.sticker-badge.rose                    { background: linear-gradient(135deg, var(--rose), #cf7a82); }
+.sticker-badge.orange                  { background: linear-gradient(135deg, var(--orange), #f5a55a); }
+.sticker-badge.grey {
+  color: rgba(74, 55, 40, 0.6);
+  border: 1px solid rgba(74, 55, 40, 0.15);
+  background: rgba(74, 55, 40, 0.07);
+}
+
+.avatar { background: linear-gradient(135deg, var(--orange), #f5a55a); }
+.avatar-large { background: linear-gradient(135deg, var(--orange), #f5a55a); }
+
+/* ============================================================
+   ROLE SWITCHER
+   ============================================================ */
+.role-switcher {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.role-button {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(242, 125, 38, 0.05);
+  color: var(--ink);
+}
+
+.role-button strong {
+  font-weight: 800;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.role-button span { color: var(--muted); font-size: 0.76rem; font-weight: 500; }
+
+.role-button.active {
+  background: var(--orange-muted);
+  border-color: rgba(242, 125, 38, 0.32);
+  color: var(--orange);
+}
+.role-button.active span { color: var(--orange); opacity: 0.8; }
+
+/* ============================================================
+   SIDE CARD / SESSION INFO
+   ============================================================ */
+.side-stack { display: grid; gap: 10px; }
+
+.side-card {
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  background: var(--orange-muted);
+  border: 1px solid rgba(242, 125, 38, 0.18);
+}
+
+.side-card ul { margin: 0; padding: 0; list-style: none; }
+
+.side-card li,
+.line-item,
+.audit-line,
+.invite-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.side-card li:last-child,
+.line-item:last-child,
+.audit-line:last-child,
+.invite-line:last-child { border-bottom: 0; }
+
+/* ============================================================
+   CARDS — all white, heavily rounded, orange border
+   ============================================================ */
+.kpi-card,
+.list-card,
+.detail-card,
+.class-card,
+.student-card,
+.catalog-card,
+.invite-card,
+.invite-state,
+.empty-state {
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-soft);
+}
+
+.kpi-card {
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-soft);
+}
+
+.kpi-card h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.kpi-card strong {
+  display: block;
+  margin-top: 8px;
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  color: var(--ink);
+  line-height: 1;
+}
+
+/* ============================================================
+   MAIN CONTENT AREA
+   ============================================================ */
+.main { display: grid; gap: 18px; min-width: 0; }
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero {
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  position: relative;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow);
+}
+
+/* Orange glow blob */
+.hero::after {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -100px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(242,125,38,0.18), transparent 70%);
+  pointer-events: none;
+}
+
+.hero-copy, .hero-aside { position: relative; z-index: 1; }
+
+.hero-copy h2 {
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  margin-bottom: 10px;
+}
+
+.hero-copy p {
+  max-width: 62ch;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.hero-actions { margin-top: 18px; }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.hero-actions,
+.action-row,
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.primary-button,
+.secondary-button,
+.mini-button,
+.filter-chip,
+.status-pill,
+.pill {
+  border-radius: var(--radius-pill);
+  padding: 10px 18px;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.primary-button {
+  background: var(--orange);
+  color: white;
+  box-shadow: var(--shadow-orange);
+}
+
+.secondary-button {
+  background: var(--orange-muted);
+  color: var(--orange);
+  border: 1px solid rgba(242, 125, 38, 0.24);
+}
+
+.mini-button,
+.filter-chip,
+.pill {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  padding: 7px 14px;
+  font-size: 0.82rem;
+}
+
+.filter-chip.active,
+.role-button.active {
+  background: var(--orange-muted);
+  border-color: rgba(242, 125, 38, 0.32);
+  color: var(--orange);
+}
+
+/* ============================================================
+   GRIDS
+   ============================================================ */
+.kpi-grid,
+.screen-grid,
+.cards-grid,
+.catalog-grid,
+.album-grid,
+.invite-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.kpi-grid { grid-template-columns: 1fr; }
+
+.screen-grid.two { grid-template-columns: 1fr; }
+
+.cards-grid.students,
+.cards-grid.classes,
+.catalog-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+/* Album grid — larger cards, like conquista-app AchievementCard */
+.album-grid {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+/* ============================================================
+   SCREEN SECTION
+   ============================================================ */
+.screen-section {
+  display: grid;
+  gap: 16px;
+  animation: screen-enter 380ms var(--ease-out) both;
+}
+
+.screen-head {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.screen-head h3 {
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  margin-bottom: 4px;
+}
+
+/* ============================================================
+   PROGRESS BAR — orange, taller, rounded, animated
+   ============================================================ */
+.progress-wrap { display: grid; gap: 6px; }
+
+.progress-bar {
+  width: 100%;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--orange-light);
+  overflow: hidden;
+}
+
+.progress-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--orange);
+  transition: width 900ms var(--ease-out);
+}
+
+/* ============================================================
+   STATUS PILLS & LABELS
+   ============================================================ */
+.status-pill,
+.tiny-label,
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+}
+
+.status-pill {
+  padding: 5px 12px;
+  background: rgba(74, 55, 40, 0.07);
+  border: 1px solid var(--line);
+}
+
+.status-pill.pending {
+  color: var(--navy);
+  background: rgba(46, 76, 102, 0.10);
+  border-color: rgba(46, 76, 102, 0.15);
+}
+
+.status-pill.active {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.10);
+  border-color: rgba(22, 163, 74, 0.20);
+}
+
+.status-pill.removed {
+  color: var(--rose);
+  background: rgba(184, 93, 103, 0.10);
+  border-color: rgba(184, 93, 103, 0.20);
+}
+
+.tiny-label {
+  padding: 4px 10px;
+  background: rgba(74, 55, 40, 0.06);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+/* ============================================================
+   LINE ITEMS
+   ============================================================ */
+.line-title, .person-name { font-weight: 700; }
+.muted { color: var(--muted); font-size: 0.875rem; }
+
+/* ============================================================
+   FORM ELEMENTS
+   ============================================================ */
+.form-grid,
+.achievement-list,
+.list-reset {
+  display: grid;
+  gap: 10px;
+}
+
+.field { display: grid; gap: 6px; }
+
+.field label { font-size: 0.82rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  background: var(--card);
+  color: var(--ink);
+  transition: border-color 180ms;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--orange);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--orange-muted);
+}
+
+/* ============================================================
+   STUDENT CARD
+   ============================================================ */
+.student-top,
+.detail-top,
+.achievement-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.detail-title {
+  font-size: 1.8rem;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  cursor: pointer;
+}
+
+.check-row:hover { background: var(--orange-muted); }
+
+/* ============================================================
+   ACHIEVEMENT OPTION (GrantPage)
+   ============================================================ */
+.achievement-option {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 10px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  padding: 14px;
+}
+
+.achievement-option.selected {
+  border-color: var(--orange);
+  background: var(--orange-muted);
+  box-shadow: 0 0 0 2px rgba(242, 125, 38, 0.18);
+}
+
+/* ============================================================
+   STICKER / ALBUM CARD
+   Inspired by AchievementCard in conquista-app:
+   white card, rounded-3xl, shadow, icon circle on top, status badge
+   ============================================================ */
+.sticker {
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  min-height: 180px;
+  transition: box-shadow 220ms var(--ease-out), transform 220ms var(--ease-out);
+}
+
+.sticker.locked {
+  border-style: dashed;
+  border-color: var(--line);
+  background: rgba(255,255,255,0.55);
+  opacity: 0.72;
+}
+
+.sticker-clickable {
+  width: 100%;
+  cursor: pointer;
+  background: inherit;
+}
+
+.sticker-clickable.locked {
+  cursor: default;
+}
+
+.sticker-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+
+/* Status badge inside sticker — full-width pill at bottom */
+.sticker .status-pill {
+  width: 100%;
+  justify-content: center;
+  margin-top: auto;
+  font-size: 0.74rem;
+}
+
+.sticker .status-pill.active {
+  background: var(--orange-muted);
+  color: var(--orange);
+  border-color: rgba(242, 125, 38, 0.22);
+}
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty-state {
+  text-align: center;
+  padding: 36px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px dashed var(--line);
+  color: var(--muted);
+}
+
+.empty-state h4 { font-size: 1.1rem; margin-bottom: 8px; color: var(--ink); }
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 100px;
+  transform: translateX(-50%) translateY(120%);
+  padding: 14px 22px;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: white;
+  box-shadow: 0 20px 32px rgba(0,0,0,0.22);
+  transition: transform 200ms var(--ease-out);
+  font-weight: 600;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  z-index: 200;
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ============================================================
+   MODAL (ShareModal)
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.modal-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(74, 55, 40, 0.48);
+  backdrop-filter: blur(10px);
+}
+
+/* Outer modal shell — golden-tan like conquista-app ShareModal */
+.modal-panel {
+  position: relative;
+  width: min(520px, 100%);
+  max-height: min(94vh, 900px);
+  overflow: auto;
+  border-radius: var(--radius-xl);
+  padding: 22px;
+  background: #c2a96b;
+  background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.12) 1px, transparent 0);
+  background-size: 22px 22px;
+  box-shadow: 0 40px 70px rgba(0,0,0,0.26);
+  animation: screen-enter 260ms var(--ease-out) both;
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+/* Inner white card inside modal */
+.modal-inner-card {
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  padding: 22px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.14);
+  display: grid;
+  gap: 16px;
+}
+
+.story-preview {
+  display: grid;
+  justify-items: center;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.3);
+}
+
+.story-frame {
+  width: min(340px, 100%);
+  aspect-ratio: 9 / 16;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(74,55,40,0.2);
+}
+
+.story-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* Specific share button colours */
+.btn-instagram {
+  background: linear-gradient(135deg, #833ab4, #c13584, #e1306c, #fd1d1d);
+  color: white;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 13px 18px;
+  font-weight: 700;
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-whatsapp {
+  background: #25d366;
+  color: white;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 13px 18px;
+  font-weight: 700;
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-download {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 13px 18px;
+  font-weight: 700;
+  flex: 1;
+  min-width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.modal-footnote {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Close button inside modal */
+.modal-close-btn {
+  background: rgba(255,255,255,0.22);
+  color: white;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 0.84rem;
+  backdrop-filter: blur(8px);
+}
+
+/* ============================================================
+   FEED CARD (DashboardPage activity feed)
+   Inspired by FeedCard in conquista-app
+   ============================================================ */
+.feed-card {
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 12px;
+}
+
+.feed-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.feed-achievement-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+}
+
+.feed-achievement-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: var(--orange-muted);
+  color: var(--orange);
+  font-weight: 700;
+  font-size: 0.9rem;
+  border: 1px solid rgba(242,125,38,0.2);
+}
+
+.feed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(22, 163, 74, 0.10);
+  color: #16a34a;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* ============================================================
+   BOTTOM NAV — mobile only, fixed
+   Inspired by bottom nav in conquista-app
+   ============================================================ */
+.bottom-nav {
+  display: flex;
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 8px 32px rgba(74,55,40,0.18);
+  border: 1px solid var(--card-border);
+  padding: 6px;
+  z-index: 90;
+  justify-content: space-around;
+  align-items: stretch;
+}
+
+.bottom-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition: color 180ms, background 180ms;
+}
+
+.bottom-nav-btn.active {
+  color: var(--orange);
+  background: var(--orange-muted);
+}
+
+.bottom-nav-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+/* ============================================================
+   CLASS CARD — polished version with avatar, progress, badges
+   ============================================================ */
+.class-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.class-card--selected {
+  border-color: var(--orange) !important;
+  box-shadow: 0 0 0 2px rgba(242, 125, 38, 0.22), var(--shadow-soft) !important;
+}
+
+.class-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.class-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 800;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  box-shadow: 0 6px 18px rgba(74, 55, 40, 0.18);
+}
+
+.class-card-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.class-badge-pending {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(46, 76, 102, 0.12);
+  color: var(--navy);
+  font-size: 0.74rem;
+  font-weight: 700;
+  border: 1px solid rgba(46, 76, 102, 0.18);
+}
+
+.class-card-body { display: grid; gap: 4px; }
+
+.class-card-name {
+  font-family: 'Playfair Display', 'Fraunces', serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.class-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+
+.class-card-dot { opacity: 0.4; }
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ============================================================
+   INVITE GRID
+   ============================================================ */
+.invite-grid { display: grid; gap: 12px; }
+
+/* ============================================================
+   ANIMATION
+   ============================================================ */
+@keyframes screen-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   RESPONSIVE — 760px: row headers, 2-col KPI
+   ============================================================ */
+@media (min-width: 760px) {
+  .app-shell { padding: 20px; gap: 20px; padding-bottom: 20px; }
+
+  .bottom-nav { display: none; }
+
+  .screen-head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .modal-panel { padding: 26px; }
+}
+
+/* ============================================================
+   RESPONSIVE — 980px: hero 2-col, screen-grid 2-col
+   ============================================================ */
+@media (min-width: 980px) {
+  .hero {
+    padding: 32px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  }
+
+  .screen-grid.two {
+    grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  }
+}
+
+/* ============================================================
+   RESPONSIVE — 1200px: sidebar sticky, nav 1-col
+   ============================================================ */
+@media (min-width: 1200px) {
+  .app-shell {
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 24px;
+    padding: 24px;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 24px;
+    height: calc(100vh - 48px);
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  .nav-button {
+    padding: 13px 14px;
+    grid-template-columns: 40px 1fr;
+  }
+
+  .nav-icon,
+  .avatar,
+  .sticker-badge {
+    width: 40px;
+    height: 40px;
+  }
+
+  .nav-list { grid-template-columns: 1fr; }
+  .role-switcher { grid-template-columns: 1fr; }
+}

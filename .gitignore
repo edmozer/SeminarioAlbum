@@ -1,0 +1,21 @@
+.DS_Store
+__MACOSX/
+._*
+
+# Logs / pids
+*.log
+*.pid
+
+# Env
+.env
+.env.*
+
+# Vite/React build artifacts (workspace root)
+web/dist/
+web/dist-ssr/
+web/node_modules/
+web/.dev.*
+
+# Editors
+.idea/
+.vscode/
