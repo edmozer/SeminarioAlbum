@@ -1,6 +1,19 @@
 import { Link, useParams } from 'react-router-dom'
+import type { Role, StudentAchievement } from '../domain/types'
 import { formatDate } from '../lib/utils'
 import { useAppState } from '../state/AppState'
+
+type ApiStudentAchievementRow = {
+  id: string
+  student_id: string
+  achievement_id: string
+  granted_by: string
+  granted_by_role: Role
+  granted_at: string
+  status: 'granted' | 'removed'
+  note?: string | null
+  removed_at?: string | null
+}
 
 export function StudentDetailPage() {
   const { studentId } = useParams()
@@ -9,7 +22,10 @@ export function StudentDetailPage() {
     visibleStudents,
     visibleAchievements,
     dispatch,
+    setToast,
   } = useAppState()
+
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
 
   const student = data.students.find((item) => item.id === studentId)
 
@@ -43,6 +59,42 @@ export function StudentDetailPage() {
   const visibleAchievementIds = new Set(visibleAchievements.map((item) => item.id))
   const activeGrants = grants.filter((item) => item.status === 'granted' && visibleAchievementIds.has(item.achievementId)).length
   const progress = visibleAchievements.length > 0 ? Math.round((activeGrants / visibleAchievements.length) * 100) : 0
+
+  async function removeGrant(grantId: string) {
+    try {
+      const res = await fetch(`${apiBase}/api/student-achievements/${grantId}/remove`, { method: 'POST' })
+      if (!res.ok) {
+        setToast('Falha ao remover no servidor.')
+        return
+      }
+
+      const listRes = await fetch(`${apiBase}/api/student-achievements`)
+      if (listRes.ok) {
+        const json = await listRes.json()
+        const list: ApiStudentAchievementRow[] = Array.isArray(json?.studentAchievements)
+          ? (json.studentAchievements as ApiStudentAchievementRow[])
+          : []
+
+        const mapped: StudentAchievement[] = list.map((row) => ({
+          id: String(row.id),
+          studentId: String(row.student_id),
+          achievementId: String(row.achievement_id),
+          grantedBy: String(row.granted_by),
+          grantedByRole: row.granted_by_role,
+          grantedAt: String(row.granted_at),
+          status: row.status,
+          note: row.note ? String(row.note) : undefined,
+          removedAt: row.removed_at ? String(row.removed_at) : undefined,
+        }))
+
+        dispatch({ type: 'student-achievements-replace', payload: { studentAchievements: mapped } })
+      }
+
+      setToast('Conquista removida.')
+    } catch {
+      setToast('Falha ao remover no servidor.')
+    }
+  }
 
   return (
     <section className="screen-section">
@@ -101,7 +153,7 @@ export function StudentDetailPage() {
                     <button
                       type="button"
                       className="mini-button"
-                      onClick={() => dispatch({ type: 'remove-student-achievement', payload: { studentAchievementId: grant.id } })}
+                      onClick={() => void removeGrant(grant.id)}
                     >
                       Remover
                     </button>

@@ -27,16 +27,28 @@ export function LoginPage() {
 
       const data = await response.json()
       
-      setToast(`Bem-vindo, ${data.user.displayName || email}`)
-      
-      // Update app state and persist
-      dispatch({ type: 'login', payload: data.user })
+      const user = data?.user
+      if (!user?.id || !user?.role) {
+        throw new Error('Invalid login response')
+      }
+
+      setToast(`Bem-vindo, ${user.displayName || email}`)
+
+      // Update app state (AppState persists session)
+      dispatch({
+        type: 'login',
+        payload: {
+          role: user.role,
+          userId: user.id,
+          displayName: user.displayName || email,
+        },
+      })
       
       // Redirect to dashboard
       navigate('/')
     } catch (error) {
       console.error(error)
-      setToast('Erro ao fazer login. Tente novamente.')
+      setToast('Erro no login. Tente novamente.')
     } finally {
       setIsLoading(false)
     }

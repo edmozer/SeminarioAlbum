@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react'
 import { seedData, sessions } from '../domain/seed'
 import type { Achievement, AchievementCategory, AppData, Invite, Role, StudentAchievement, Teacher, UserSession } from '../domain/types'
 import { emailToPersonName, uid } from '../lib/utils'
@@ -18,6 +18,18 @@ type ApiAchievementRow = {
   image_url?: string | null
   has_image?: boolean
   active: boolean
+}
+
+type ApiStudentAchievementRow = {
+  id: string
+  student_id: string
+  achievement_id: string
+  granted_by: string
+  granted_by_role: Role
+  granted_at: string
+  status: 'granted' | 'removed'
+  note?: string | null
+  removed_at?: string | null
 }
 
 const ACHIEVEMENT_CATEGORIES: AchievementCategory[] = [
@@ -72,6 +84,7 @@ type Action =
   | { type: 'class-assign-teacher'; payload: { classId: string; teacherId: string } }
   | { type: 'class-update'; payload: { classId: string; name: string; schedule: string; active: boolean } }
   | { type: 'achievements-replace'; payload: { achievements: AppData['achievements'] } }
+  | { type: 'student-achievements-replace'; payload: { studentAchievements: AppData['studentAchievements'] } }
   | { type: 'grant-achievement'; payload: { studentIds: string[]; achievementId: string; note?: string } }
   | { type: 'remove-student-achievement'; payload: { studentAchievementId: string } }
   | { type: 'invite-create'; payload: { email: string; classId: string } }
@@ -144,6 +157,16 @@ function reducer(state: RootState, action: Action): RootState {
       data: {
         ...state.data,
         achievements: action.payload.achievements,
+      },
+    }
+  }
+
+  if (action.type === 'student-achievements-replace') {
+    return {
+      ...state,
+      data: {
+        ...state.data,
+        studentAchievements: action.payload.studentAchievements,
       },
     }
   }
@@ -556,9 +579,23 @@ function reducer(state: RootState, action: Action): RootState {
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
-  const [toastTimer, setToastTimer] = useState<number | null>(null)
+  const toastTimerRef = useRef<number | null>(null)
 
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+
+  // Auto-dismiss toast messages quickly
+  useEffect(() => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = null
+    }
+
+    if (!state.ui.toastMessage) return
+
+    toastTimerRef.current = window.setTimeout(() => {
+      dispatch({ type: 'toast', payload: null })
+    }, 1000)
+  }, [state.ui.toastMessage])
 
   useEffect(() => {
     // Load achievements from backend (source of truth)
@@ -591,6 +628,39 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     })()
   }, [apiBase])
 
+  useEffect(() => {
+    // Load student achievements from backend (source of truth)
+    ;(async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/student-achievements`)
+        if (!res.ok) return
+        const json = await res.json()
+        const list: ApiStudentAchievementRow[] = Array.isArray(json?.studentAchievements)
+          ? (json.studentAchievements as ApiStudentAchievementRow[])
+          : []
+
+        dispatch({
+          type: 'student-achievements-replace',
+          payload: {
+            studentAchievements: list.map((row) => ({
+              id: String(row.id),
+              studentId: String(row.student_id),
+              achievementId: String(row.achievement_id),
+              grantedBy: String(row.granted_by),
+              grantedByRole: row.granted_by_role,
+              grantedAt: String(row.granted_at),
+              status: row.status,
+              note: row.note ? String(row.note) : undefined,
+              removedAt: row.removed_at ? String(row.removed_at) : undefined,
+            })),
+          },
+        })
+      } catch {
+        // ignore
+      }
+    })()
+  }, [apiBase])
+
   // Prototype-grade persistence for demo: keeps changes on refresh.
   useEffect(() => {
     if (state.session) {
@@ -609,13 +679,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     // but we can define it inside since dispatch is stable
     const setToast = (message: string | null) => {
       dispatch({ type: 'toast', payload: message })
-      if (toastTimer) {
-        window.clearTimeout(toastTimer)
-      }
-      if (message) {
-        const timer = window.setTimeout(() => dispatch({ type: 'toast', payload: null }), 2400)
-        setToastTimer(timer)
-      }
     }
 
     // If no session, provide safe defaults
@@ -681,7 +744,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       selectedClassId,
       setToast,
     }
-  }, [state, toastTimer])
+  }, [state])
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

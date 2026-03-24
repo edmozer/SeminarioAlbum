@@ -74,6 +74,25 @@ async function ensureTables() {
   await pool.query('alter table achievements add column if not exists image_mime text')
   await pool.query('alter table achievements add column if not exists image_data bytea')
 
+  await pool.query(`
+    create table if not exists student_achievements (
+      id text primary key,
+      student_id text not null,
+      achievement_id text not null,
+      granted_by text not null,
+      granted_by_role text not null,
+      granted_at timestamptz not null default now(),
+      status text not null default 'granted',
+      note text,
+      removed_at timestamptz
+    );
+  `)
+
+  // Only one active grant per student+achievement
+  await pool.query(
+    "create unique index if not exists ux_student_achievement_active on student_achievements(student_id, achievement_id) where status='granted'",
+  )
+
   // Seed initial catalog if empty
   const existing = await pool.query('select count(1)::int as count from achievements')
   const count = Number(existing.rows?.[0]?.count ?? 0)
@@ -360,6 +379,91 @@ app.put('/api/achievements/:id', async (req, res) => {
     res.status(200).json({ achievement: result.rows[0] })
   } catch {
     res.status(500).json({ error: 'Failed to update achievement' })
+  }
+})
+
+app.get('/api/student-achievements', async (req, res) => {
+  const studentId = req.query.studentId ? String(req.query.studentId) : null
+
+  try {
+    const result = studentId
+      ? await pool.query(
+          `select id, student_id, achievement_id, granted_by, granted_by_role, granted_at, status, note, removed_at
+           from student_achievements
+           where student_id=$1
+           order by granted_at desc`,
+          [studentId],
+        )
+      : await pool.query(
+          `select id, student_id, achievement_id, granted_by, granted_by_role, granted_at, status, note, removed_at
+           from student_achievements
+           order by granted_at desc`,
+        )
+
+    res.status(200).json({ studentAchievements: result.rows })
+  } catch {
+    res.status(500).json({ error: 'Failed to list student achievements' })
+  }
+})
+
+app.post('/api/student-achievements/grant', async (req, res) => {
+  const studentIds = Array.isArray(req.body?.studentIds) ? (req.body.studentIds as unknown[]) : []
+  const achievementId = String(req.body?.achievementId ?? '').trim()
+  const grantedBy = String(req.body?.grantedBy ?? '').trim()
+  const grantedByRole = String(req.body?.grantedByRole ?? '').trim()
+  const note = req.body?.note ? String(req.body.note).trim() : null
+
+  const cleanStudentIds = studentIds
+    .map((v) => String(v).trim())
+    .filter(Boolean)
+
+  if (cleanStudentIds.length === 0 || !achievementId || !grantedBy || !grantedByRole) {
+    res.status(400).json({ error: 'Missing required fields' })
+    return
+  }
+
+  const inserted: any[] = []
+  const now = new Date().toISOString()
+
+  try {
+    for (const studentId of cleanStudentIds) {
+      const id = randomUUID()
+      const result = await pool.query(
+        `insert into student_achievements (id, student_id, achievement_id, granted_by, granted_by_role, granted_at, status, note)
+         values ($1,$2,$3,$4,$5,$6,'granted',$7)
+         on conflict (student_id, achievement_id) where status='granted' do nothing
+         returning id, student_id, achievement_id, granted_by, granted_by_role, granted_at, status, note, removed_at`,
+        [id, studentId, achievementId, grantedBy, grantedByRole, now, note],
+      )
+
+      if (result.rows?.[0]) inserted.push(result.rows[0])
+    }
+
+    res.status(200).json({ insertedCount: inserted.length, inserted })
+  } catch {
+    res.status(500).json({ error: 'Failed to grant achievement' })
+  }
+})
+
+app.post('/api/student-achievements/:id/remove', async (req, res) => {
+  const id = String(req.params.id)
+  try {
+    const result = await pool.query(
+      `update student_achievements
+       set status='removed', removed_at=now()
+       where id=$1 and status='granted'
+       returning id, student_id, achievement_id, granted_by, granted_by_role, granted_at, status, note, removed_at`,
+      [id],
+    )
+
+    if (!result.rows?.[0]) {
+      res.status(404).json({ error: 'Not found' })
+      return
+    }
+
+    res.status(200).json({ studentAchievement: result.rows[0] })
+  } catch {
+    res.status(500).json({ error: 'Failed to remove student achievement' })
   }
 })
 

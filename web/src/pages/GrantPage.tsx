@@ -1,5 +1,18 @@
 import { useMemo, useState } from 'react'
+import type { Role, StudentAchievement } from '../domain/types'
 import { useAppState } from '../state/AppState'
+
+type ApiStudentAchievementRow = {
+  id: string
+  student_id: string
+  achievement_id: string
+  granted_by: string
+  granted_by_role: Role
+  granted_at: string
+  status: 'granted' | 'removed'
+  note?: string | null
+  removed_at?: string | null
+}
 
 export function GrantPage() {
   const {
@@ -7,8 +20,11 @@ export function GrantPage() {
     visibleAchievements,
     dispatch,
     selectedClassId,
-    state: { data },
+    setToast,
+    state: { data, session },
   } = useAppState()
+
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
 
   const [studentSelection, setStudentSelection] = useState<{ key: string; ids: string[] }>({ key: '', ids: [] })
   const [selectedAchievementId, setSelectedAchievementId] = useState<string | null>(null)
@@ -31,24 +47,72 @@ export function GrantPage() {
     })
   }
 
-  function submitGrant() {
+  async function submitGrant() {
     if (!selectedAchievementId) {
-      dispatch({ type: 'toast', payload: 'Selecione um achievement para conceder.' })
+      setToast('Selecione um achievement para conceder.')
       return
     }
     if (selectedStudentIds.length === 0) {
-      dispatch({ type: 'toast', payload: 'Selecione ao menos um aluno.' })
+      setToast('Selecione ao menos um aluno.')
       return
     }
 
-    dispatch({
-      type: 'grant-achievement',
-      payload: {
-        studentIds: selectedStudentIds,
-        achievementId: selectedAchievementId,
-        note: note.trim() || undefined,
-      },
-    })
+    if (!session) {
+      setToast('Sessao invalida. Faca login novamente.')
+      return
+    }
+
+    try {
+      const res = await fetch(`${apiBase}/api/student-achievements/grant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentIds: selectedStudentIds,
+          achievementId: selectedAchievementId,
+          grantedBy: session.displayName,
+          grantedByRole: session.role,
+          note: note.trim() || null,
+        }),
+      })
+
+      if (!res.ok) {
+        setToast('Falha ao salvar concessao no servidor.')
+        return
+      }
+
+      // Refresh from backend so the student sees it too
+      const listRes = await fetch(`${apiBase}/api/student-achievements`)
+      if (listRes.ok) {
+        const json = await listRes.json()
+        const list: ApiStudentAchievementRow[] = Array.isArray(json?.studentAchievements)
+          ? (json.studentAchievements as ApiStudentAchievementRow[])
+          : []
+
+        const mapped: StudentAchievement[] = list.map((row) => ({
+          id: String(row.id),
+          studentId: String(row.student_id),
+          achievementId: String(row.achievement_id),
+          grantedBy: String(row.granted_by),
+          grantedByRole: row.granted_by_role,
+          grantedAt: String(row.granted_at),
+          status: row.status,
+          note: row.note ? String(row.note) : undefined,
+          removedAt: row.removed_at ? String(row.removed_at) : undefined,
+        }))
+
+        dispatch({
+          type: 'student-achievements-replace',
+          payload: {
+            studentAchievements: mapped,
+          },
+        })
+      }
+
+      setToast('Concessao salva.')
+    } catch {
+      setToast('Falha ao salvar concessao no servidor.')
+      return
+    }
 
     setStudentSelection({ key: visibleStudentsKey, ids: [] })
     setSelectedAchievementId(null)
