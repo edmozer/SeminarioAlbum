@@ -53,7 +53,7 @@ function App() {
           <Route path="teachers" element={<RoleGuard allow={['superadmin', 'director']}><TeachersPage /></RoleGuard>} />
           <Route path="grant" element={<RoleGuard allow={['superadmin', 'director', 'professor']}><GrantPage /></RoleGuard>} />
           <Route path="invites" element={<RoleGuard allow={['superadmin', 'director', 'professor']}><InvitesPage /></RoleGuard>} />
-          <Route path="album" element={<RoleGuard allow={['superadmin', 'student']}><AlbumPage /></RoleGuard>} />
+          <Route path="album" element={<RoleGuard allow={['superadmin', 'director', 'professor', 'student']}><AlbumPage /></RoleGuard>} />
           <Route path="catalog" element={<RoleGuard allow={['superadmin', 'director']}><CatalogPage /></RoleGuard>} />
           <Route path="audit" element={<RoleGuard allow={['superadmin', 'director']}><AuditPage /></RoleGuard>} />
           <Route path="*" element={<NotFoundPage />} />
