@@ -1,27 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Achievement, AchievementCategory } from '../domain/types'
+import { saveAchievement } from '../lib/api'
 import { useAppState } from '../state/AppState'
-
-type ApiAchievementRow = {
-  id: string
-  title: string
-  description: string
-  category: string
-  collection: string
-  color: string
-  icon: string
-  image_url?: string | null
-  has_image?: boolean
-  active: boolean
-}
-
-function coerceCategory(value: string): AchievementCategory {
-  return (CATEGORIES.includes(value as AchievementCategory) ? (value as AchievementCategory) : CATEGORIES[0])
-}
-
-function coerceColor(value: string): Achievement['color'] {
-  return (COLORS.includes(value as Achievement['color']) ? (value as Achievement['color']) : COLORS[0])
-}
 
 const CATEGORIES: AchievementCategory[] = ['Leitura', 'Frequencia', 'Participacao', 'Memorizacao', 'Modulo', 'Comportamento']
 const COLORS: Achievement['color'][] = ['clay', 'gold', 'teal', 'olive', 'navy', 'rose']
@@ -41,13 +21,11 @@ type AchievementForm = {
 
 export function CatalogPage() {
   const {
-    state: { session },
-    visibleAchievements,
+    state: { session, data },
     dispatch,
     setToast,
   } = useAppState()
 
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
   const canManage = session?.role === 'director' || session?.role === 'superadmin'
 
   const [form, setForm] = useState<AchievementForm>({
@@ -66,12 +44,12 @@ export function CatalogPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const sorted = useMemo(
-    () => visibleAchievements.slice().sort((a, b) => a.collection.localeCompare(b.collection, 'pt-BR') || a.title.localeCompare(b.title, 'pt-BR')),
-    [visibleAchievements],
+    () => data.achievements.slice().sort((a, b) => a.collection.localeCompare(b.collection, 'pt-BR') || a.title.localeCompare(b.title, 'pt-BR')),
+    [data.achievements],
   )
 
   function startEdit(id: string) {
-    const a = visibleAchievements.find((x) => x.id === id)
+    const a = data.achievements.find((x) => x.id === id)
     if (!a) return
     setEditingId(id)
     setForm({
@@ -126,6 +104,7 @@ export function CatalogPage() {
 
   async function save() {
     if (!canManage) return
+    if (!session) return
 
     try {
       const payload = {
@@ -144,42 +123,16 @@ export function CatalogPage() {
         active: form.active,
       }
 
-      const url = editingId ? `${apiBase}/api/achievements/${editingId}` : `${apiBase}/api/achievements`
-      const method = editingId ? 'PUT' : 'POST'
+      const savedAchievement = await saveAchievement(session, payload, editingId ?? undefined)
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      dispatch({
+        type: 'achievements-replace',
+        payload: {
+          achievements: editingId
+            ? data.achievements.map((item) => (item.id === editingId ? savedAchievement : item))
+            : [...data.achievements, savedAchievement],
+        },
       })
-
-      if (!res.ok) {
-        setToast('Erro ao salvar achievement.')
-        return
-      }
-
-      // Re-fetch list by reloading app state: simplest for now
-      const listRes = await fetch(`${apiBase}/api/achievements`)
-      if (listRes.ok) {
-        const json = await listRes.json()
-        const list: ApiAchievementRow[] = Array.isArray(json?.achievements) ? (json.achievements as ApiAchievementRow[]) : []
-        dispatch({
-          type: 'achievements-replace',
-          payload: {
-            achievements: list.map((row) => ({
-              id: String(row.id),
-              title: String(row.title ?? ''),
-              description: String(row.description ?? ''),
-              category: coerceCategory(String(row.category ?? '')),
-              collection: String(row.collection ?? ''),
-              color: coerceColor(String(row.color ?? 'clay')),
-              icon: String(row.icon ?? '🏅'),
-              imageUrl: row.has_image ? `${apiBase}/api/achievements/${String(row.id)}/image` : (row.image_url ? String(row.image_url) : undefined),
-              active: Boolean(row.active),
-            })),
-          },
-        })
-      }
 
       setToast(editingId ? 'Achievement atualizado.' : 'Achievement criado.')
       resetForm()

@@ -58,7 +58,11 @@ export function DashboardPage() {
 
   const visibleAuditLogs =
     session.role === 'professor'
-      ? data.auditLogs.filter((item) => item.actorRole === 'professor' && item.actor === session.displayName)
+      ? data.auditLogs.filter(
+          (item) =>
+            item.actorRole === 'professor' &&
+            (item.actorUserId === session.userId || (!item.actorUserId && item.actor === session.displayName)),
+        )
       : data.auditLogs
 
   return (

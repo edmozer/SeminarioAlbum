@@ -1,55 +1,12 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react'
 import { seedData, sessions } from '../domain/seed'
-import type { Achievement, AchievementCategory, AppData, Invite, Role, StudentAchievement, Teacher, UserSession } from '../domain/types'
-import { emailToPersonName, uid } from '../lib/utils'
+import type { AppData, Invite, Role, StudentAchievement, Teacher, UserSession } from '../domain/types'
+import { ApiError, fetchAchievements, fetchCurrentUser, fetchStudentAchievements } from '../lib/api'
+import { createInviteToken, emailToPersonName, isValidEmail, uid } from '../lib/utils'
 
 const STORAGE_SESSION_KEY = 'album_session'
-const STORAGE_DATA_KEY = 'album_data_v1'
-
-type ApiAchievementRow = {
-  id: string
-  title: string
-  description: string
-  category: string
-  collection: string
-  color: string
-  icon: string
-  image_url?: string | null
-  has_image?: boolean
-  active: boolean
-}
-
-type ApiStudentAchievementRow = {
-  id: string
-  student_id: string
-  achievement_id: string
-  granted_by: string
-  granted_by_role: Role
-  granted_at: string
-  status: 'granted' | 'removed'
-  note?: string | null
-  removed_at?: string | null
-}
-
-const ACHIEVEMENT_CATEGORIES: AchievementCategory[] = [
-  'Leitura',
-  'Frequencia',
-  'Participacao',
-  'Memorizacao',
-  'Modulo',
-  'Comportamento',
-]
-
-const ACHIEVEMENT_COLORS: Achievement['color'][] = ['clay', 'gold', 'teal', 'olive', 'navy', 'rose']
-
-function coerceCategory(value: string): AchievementCategory {
-  return (ACHIEVEMENT_CATEGORIES.includes(value as AchievementCategory) ? (value as AchievementCategory) : 'Leitura')
-}
-
-function coerceColor(value: string): Achievement['color'] {
-  return (ACHIEVEMENT_COLORS.includes(value as Achievement['color']) ? (value as Achievement['color']) : 'clay')
-}
+const STORAGE_DATA_KEY_PREFIX = 'album_data_v2'
 
 function safeParseJson<T>(value: string | null): T | null {
   if (!value) return null
@@ -57,6 +14,28 @@ function safeParseJson<T>(value: string | null): T | null {
     return JSON.parse(value) as T
   } catch {
     return null
+  }
+}
+
+function readStoredSession(): UserSession | null {
+  const parsed = safeParseJson<Partial<UserSession>>(localStorage.getItem(STORAGE_SESSION_KEY))
+  if (!parsed) return null
+
+  if (
+    typeof parsed.role !== 'string' ||
+    typeof parsed.userId !== 'string' ||
+    typeof parsed.displayName !== 'string' ||
+    typeof parsed.email !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    role: parsed.role,
+    userId: parsed.userId,
+    displayName: parsed.displayName,
+    email: parsed.email,
+    authToken: typeof parsed.authToken === 'string' ? parsed.authToken : undefined,
   }
 }
 
@@ -107,11 +86,59 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
+function dataStorageKey(userId: string): string {
+  return `${STORAGE_DATA_KEY_PREFIX}:${userId}`
+}
+
+function loadDataForSession(session: UserSession | null): AppData {
+  const base = structuredClone(seedData)
+  if (!session) return base
+
+  const persistedData = safeParseJson<Partial<AppData>>(localStorage.getItem(dataStorageKey(session.userId)))
+  return persistedData ? ({ ...base, ...persistedData } as AppData) : base
+}
+
+function isStaffRole(role: Role): boolean {
+  return role === 'superadmin' || role === 'director' || role === 'professor'
+}
+
+function managedClassIds(data: AppData, session: UserSession): string[] {
+  if (session.role === 'professor') {
+    return data.classes.filter((item) => item.teacherId === session.userId).map((item) => item.id)
+  }
+
+  return data.classes.map((item) => item.id)
+}
+
+function canManageStudent(data: AppData, session: UserSession, studentId: string): boolean {
+  if (session.role === 'superadmin' || session.role === 'director') {
+    return data.students.some((item) => item.id === studentId)
+  }
+
+  if (session.role !== 'professor') {
+    return false
+  }
+
+  const student = data.students.find((item) => item.id === studentId)
+  if (!student) return false
+  return managedClassIds(data, session).includes(student.classId)
+}
+
+function canManageInviteClass(data: AppData, session: UserSession, classId: string): boolean {
+  if (session.role === 'superadmin' || session.role === 'director') {
+    return data.classes.some((item) => item.id === classId)
+  }
+
+  if (session.role !== 'professor') {
+    return false
+  }
+
+  return managedClassIds(data, session).includes(classId)
+}
+
 function initialState(): RootState {
-  const session = safeParseJson<UserSession>(localStorage.getItem(STORAGE_SESSION_KEY))
-  const seed = structuredClone(seedData)
-  const persistedData = safeParseJson<Partial<AppData>>(localStorage.getItem(STORAGE_DATA_KEY))
-  const data: AppData = persistedData ? ({ ...seed, ...persistedData } as AppData) : seed
+  const session = readStoredSession()
+  const data = loadDataForSession(session)
 
   // If we have a session (e.g. professor), we might want to default select a class
   const selectedClassId =
@@ -137,6 +164,7 @@ function appendAudit(base: AppData, actor: UserSession | null, action: string, t
       {
         id: uid('log'),
         action,
+        actorUserId: actor?.userId ?? 'anonymous',
         actor: actor?.displayName ?? 'Unknown',
         actorRole: actor?.role ?? 'student',
         target,
@@ -149,8 +177,6 @@ function appendAudit(base: AppData, actor: UserSession | null, action: string, t
 }
 
 function reducer(state: RootState, action: Action): RootState {
-  const isStudent = state.session?.role === 'student'
-
   if (action.type === 'achievements-replace') {
     return {
       ...state,
@@ -179,7 +205,7 @@ function reducer(state: RootState, action: Action): RootState {
     const displayName = action.payload.displayName.trim()
     const email = action.payload.email.trim().toLowerCase()
 
-    if (!displayName || !email.includes('@')) {
+    if (!displayName || !isValidEmail(email)) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Informe nome e email validos.' } }
     }
 
@@ -212,7 +238,7 @@ function reducer(state: RootState, action: Action): RootState {
 
     const displayName = action.payload.displayName.trim()
     const email = action.payload.email.trim().toLowerCase()
-    if (!displayName || !email.includes('@')) {
+    if (!displayName || !isValidEmail(email)) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Informe nome e email validos.' } }
     }
 
@@ -331,16 +357,19 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'login') {
+    const nextData = loadDataForSession(action.payload)
     return {
       ...state,
+      data: nextData,
       session: action.payload,
       ui: {
         ...state.ui,
         // Auto-select class for professor
         selectedClassId:
           action.payload.role === 'professor'
-            ? state.data.classes.find((item) => item.teacherId === action.payload.userId)?.id ?? null
+            ? nextData.classes.find((item) => item.teacherId === action.payload.userId)?.id ?? null
             : null,
+        selectedStudentId: action.payload.role === 'student' ? action.payload.userId : null,
       },
     }
   }
@@ -348,16 +377,19 @@ function reducer(state: RootState, action: Action): RootState {
   if (action.type === 'logout') {
     return {
       ...state,
+      data: structuredClone(seedData),
       session: null,
-      ui: { ...state.ui, selectedClassId: null, selectedStudentId: null },
+      ui: { ...state.ui, selectedClassId: null, selectedStudentId: null, toastMessage: null },
     }
   }
 
   if (action.type === 'switch-role') {
     const session = sessions[action.payload]
-    const classForTeacher = state.data.classes.find((item) => item.teacherId === session.userId)?.id ?? null
+    const nextData = loadDataForSession(session)
+    const classForTeacher = nextData.classes.find((item) => item.teacherId === session.userId)?.id ?? null
     return {
       ...state,
+      data: nextData,
       session,
       ui: {
         ...state.ui,
@@ -380,16 +412,29 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'grant-achievement') {
-    if (isStudent || !state.session) {
+    if (!state.session || !isStaffRole(state.session.role)) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para conceder.' } }
     }
+
     const actor = state.session
+    const achievement = state.data.achievements.find((item) => item.id === action.payload.achievementId)
+    if (!achievement || !achievement.active) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Conquista indisponivel para concessao.' } }
+    }
+
+    const allowedStudentIds = Array.from(new Set(action.payload.studentIds)).filter((studentId) =>
+      canManageStudent(state.data, actor, studentId),
+    )
+
+    if (allowedStudentIds.length === 0) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Nenhum aluno valido foi selecionado.' } }
+    }
 
     const now = new Date().toISOString()
     const current = state.data.studentAchievements
     const entries: StudentAchievement[] = []
 
-    action.payload.studentIds.forEach((studentId) => {
+    allowedStudentIds.forEach((studentId) => {
       const already = current.find(
         (item) =>
           item.studentId === studentId &&
@@ -410,7 +455,6 @@ function reducer(state: RootState, action: Action): RootState {
       }
     })
 
-    const achievement = state.data.achievements.find((item) => item.id === action.payload.achievementId)
     const target = `${entries.length} aluno(s)`
     const details = `Concedeu ${achievement?.title ?? 'achievement'} para ${entries.length} aluno(s).`
 
@@ -433,12 +477,16 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'remove-student-achievement') {
-    if (isStudent || !state.session) {
+    if (!state.session || !isStaffRole(state.session.role)) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para remover.' } }
     }
     const item = state.data.studentAchievements.find((entry) => entry.id === action.payload.studentAchievementId)
     if (!item) {
       return state
+    }
+
+    if (!canManageStudent(state.data, state.session, item.studentId)) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para remover esta conquista.' } }
     }
 
     const achievementTitle =
@@ -450,14 +498,19 @@ function reducer(state: RootState, action: Action): RootState {
         return s ? `${s.firstName} ${s.lastName}` : item.studentId
       })()
 
+    const actor = state.session
+
     const updated = state.data.studentAchievements.map((entry) =>
       entry.id === action.payload.studentAchievementId
-        ? { ...entry, status: 'removed' as const, removedAt: new Date().toISOString() }
+        ? {
+            ...entry,
+            status: 'removed' as const,
+            removedAt: new Date().toISOString(),
+            removedBy: actor.displayName,
+            removedByRole: actor.role,
+          }
         : entry,
     )
-
-    // Safe access to session (if we are here, isStudent is false, so session should exist for professor/admin)
-    const actor = state.session!
 
     const dataWithAudit = appendAudit(
       { ...state.data, studentAchievements: updated },
@@ -475,15 +528,25 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'invite-create') {
-    if (isStudent || !state.session) {
+    if (!state.session || !isStaffRole(state.session.role)) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para criar convite.' } }
     }
+
+    const email = action.payload.email.trim().toLowerCase()
+    if (!isValidEmail(email)) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Informe um email valido.' } }
+    }
+
+    if (!canManageInviteClass(state.data, state.session, action.payload.classId)) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para convidar alunos desta classe.' } }
+    }
+
     const invite: Invite = {
       id: uid('inv'),
-      email: action.payload.email,
+      email,
       classId: action.payload.classId,
       status: 'pending',
-      token: `INV-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      token: createInviteToken(),
       createdBy: state.session.displayName,
       createdAt: new Date().toISOString(),
     }
@@ -504,9 +567,19 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'invite-cancel') {
-    if (isStudent || !state.session) {
+    if (!state.session || !isStaffRole(state.session.role)) {
       return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para cancelar convite.' } }
     }
+
+    const invite = state.data.invites.find((entry) => entry.id === action.payload.inviteId)
+    if (!invite) {
+      return state
+    }
+
+    if (!canManageInviteClass(state.data, state.session, invite.classId)) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Sem permissao para cancelar este convite.' } }
+    }
+
     const invites = state.data.invites.map((invite) =>
       invite.id === action.payload.inviteId ? { ...invite, status: 'cancelled' as const } : invite,
     )
@@ -523,6 +596,10 @@ function reducer(state: RootState, action: Action): RootState {
   }
 
   if (action.type === 'invite-accept-simulate') {
+    if (!state.session) {
+      return { ...state, ui: { ...state.ui, toastMessage: 'Faca login para aceitar ou simular convites.' } }
+    }
+
     const invite = state.data.invites.find((entry) => entry.id === action.payload.inviteId)
     if (!invite || invite.status !== 'pending') {
       return { ...state, ui: { ...state.ui, toastMessage: 'Este convite nao esta pendente.' } }
@@ -581,8 +658,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
   const toastTimerRef = useRef<number | null>(null)
 
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
-
   // Auto-dismiss toast messages quickly
   useEffect(() => {
     if (toastTimerRef.current) {
@@ -595,71 +670,110 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     toastTimerRef.current = window.setTimeout(() => {
       dispatch({ type: 'toast', payload: null })
     }, 1000)
+
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current)
+        toastTimerRef.current = null
+      }
+    }
   }, [state.ui.toastMessage])
 
   useEffect(() => {
-    // Load achievements from backend (source of truth)
-    ;(async () => {
+    if (!state.session?.authToken) return
+
+    const session = state.session
+    let cancelled = false
+
+    void (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/achievements`)
-        if (!res.ok) return
-        const json = await res.json()
-        const list: ApiAchievementRow[] = Array.isArray(json?.achievements) ? (json.achievements as ApiAchievementRow[]) : []
+        const currentUser = await fetchCurrentUser(session)
+        if (cancelled) return
+
+        if (
+          currentUser.id !== session.userId ||
+          currentUser.role !== session.role ||
+          currentUser.displayName !== session.displayName ||
+          currentUser.email !== session.email
+        ) {
+          dispatch({
+            type: 'login',
+            payload: {
+              role: currentUser.role,
+              userId: currentUser.id,
+              displayName: currentUser.displayName,
+              email: currentUser.email,
+              authToken: session.authToken,
+            },
+          })
+        }
+      } catch (error) {
+        if (cancelled) return
+
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          dispatch({ type: 'logout' })
+          dispatch({ type: 'toast', payload: 'Sua sessao expirou. Faca login novamente.' })
+          return
+        }
+
+        dispatch({ type: 'toast', payload: 'Nao foi possivel validar sua sessao agora.' })
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [state.session])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const achievements = await fetchAchievements(state.session)
+        if (cancelled) return
 
         dispatch({
           type: 'achievements-replace',
-          payload: {
-            achievements: list.map((row) => ({
-              id: String(row.id),
-              title: String(row.title ?? ''),
-              description: String(row.description ?? ''),
-              category: coerceCategory(String(row.category ?? '')),
-              collection: String(row.collection ?? ''),
-              color: coerceColor(String(row.color ?? 'clay')),
-              icon: String(row.icon ?? '🏅'),
-              imageUrl: row.has_image ? `${apiBase}/api/achievements/${String(row.id)}/image` : (row.image_url ? String(row.image_url) : undefined),
-              active: Boolean(row.active),
-            })),
-          },
+          payload: { achievements },
         })
       } catch {
         // ignore; fallback to local seed/localStorage
       }
     })()
-  }, [apiBase])
+
+    return () => {
+      cancelled = true
+    }
+  }, [state.session])
 
   useEffect(() => {
-    // Load student achievements from backend (source of truth)
-    ;(async () => {
+    if (!state.session) return
+
+    const session = state.session
+    let cancelled = false
+
+    void (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/student-achievements`)
-        if (!res.ok) return
-        const json = await res.json()
-        const list: ApiStudentAchievementRow[] = Array.isArray(json?.studentAchievements)
-          ? (json.studentAchievements as ApiStudentAchievementRow[])
-          : []
+        const studentAchievements = await fetchStudentAchievements(
+          session,
+          session.role === 'student' ? session.userId : undefined,
+        )
+        if (cancelled) return
 
         dispatch({
           type: 'student-achievements-replace',
-          payload: {
-            studentAchievements: list.map((row) => ({
-              id: String(row.id),
-              studentId: String(row.student_id),
-              achievementId: String(row.achievement_id),
-              grantedBy: String(row.granted_by),
-              grantedByRole: row.granted_by_role,
-              grantedAt: String(row.granted_at),
-              status: row.status,
-              note: row.note ? String(row.note) : undefined,
-              removedAt: row.removed_at ? String(row.removed_at) : undefined,
-            })),
-          },
+          payload: { studentAchievements },
         })
       } catch {
         // ignore
       }
     })()
-  }, [apiBase])
+
+    return () => {
+      cancelled = true
+    }
+  }, [state.session])
 
   // Prototype-grade persistence for demo: keeps changes on refresh.
   useEffect(() => {
@@ -671,8 +785,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [state.session])
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_DATA_KEY, JSON.stringify(state.data))
-  }, [state.data])
+    if (!state.session) return
+    localStorage.setItem(dataStorageKey(state.session.userId), JSON.stringify(state.data))
+  }, [state.data, state.session])
 
   const value = useMemo<AppContextValue>(() => {
     // Helper to avoid circular dependency in useMemo if we defined setToast inside

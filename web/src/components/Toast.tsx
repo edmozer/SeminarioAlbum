@@ -11,5 +11,5 @@ export function Toast() {
     return null
   }
 
-  return <div className="toast show">{toastMessage}</div>
+  return <div className="toast show" role="status" aria-live="polite">{toastMessage}</div>
 }

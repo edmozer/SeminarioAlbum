@@ -3,6 +3,14 @@ export function uid(prefix: string): string {
   return `${prefix}-${value}-${Date.now().toString(16).slice(-5)}`
 }
 
+export function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
+export function createInviteToken(): string {
+  return `INV-${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
+}
+
 export function formatDate(iso: string): string {
   const date = new Date(iso)
   return new Intl.DateTimeFormat('pt-BR', {

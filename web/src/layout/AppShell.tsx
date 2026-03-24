@@ -23,7 +23,7 @@ const MENU: MenuItem[] = [
   { to: '/students',label: 'Alunos',     icon: '👥', roles: ['superadmin', 'director', 'professor'] },
   { to: '/grant',   label: 'Conceder',   icon: '🏅', roles: ['superadmin', 'director', 'professor'] },
   { to: '/invites', label: 'Convites',   icon: '✉️',  roles: ['superadmin', 'director', 'professor'] },
-  { to: '/album',   label: 'Álbum',      icon: '🎖️', roles: ['superadmin', 'student'] }, // Removed 'director'/'professor' from Album unless they are viewing specific student
+  { to: '/album',   label: 'Álbum',      icon: '🎖️', roles: ['superadmin', 'director', 'professor', 'student'] },
   { to: '/catalog', label: 'Catálogo',   icon: '🗂️', roles: ['superadmin', 'director'] },
   { to: '/audit',   label: 'Auditoria',  icon: '📋', roles: ['superadmin', 'director'] },
 ]
@@ -66,7 +66,6 @@ export function AppShell() {
     .filter(Boolean) as MenuItem[]
 
   const handleLogout = () => {
-    localStorage.removeItem('album_session')
     dispatch({ type: 'logout' })
     navigate('/login', { replace: true })
   }

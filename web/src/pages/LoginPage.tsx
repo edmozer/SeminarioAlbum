@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { loginWithEmail } from '../lib/api'
 import { useAppState } from '../state/AppState'
 
 export function LoginPage() {
@@ -8,43 +9,30 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      const response = await fetch(`${apiBase}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Login failed')
-      }
-
-      const data = await response.json()
-      
+      const data = await loginWithEmail(email)
       const user = data?.user
-      if (!user?.id || !user?.role) {
+      if (!user?.id || !user?.role || !user?.email || !data?.token) {
         throw new Error('Invalid login response')
       }
 
       setToast(`Bem-vindo, ${user.displayName || email}`)
 
-      // Update app state (AppState persists session)
       dispatch({
         type: 'login',
         payload: {
           role: user.role,
           userId: user.id,
           displayName: user.displayName || email,
+          email: user.email,
+          authToken: data.token,
         },
       })
-      
-      // Redirect to dashboard
+
       navigate('/')
     } catch (error) {
       console.error(error)

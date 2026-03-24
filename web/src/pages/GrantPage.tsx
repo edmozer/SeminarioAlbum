@@ -1,18 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Role, StudentAchievement } from '../domain/types'
+import { fetchStudentAchievements, grantStudentAchievements } from '../lib/api'
 import { useAppState } from '../state/AppState'
-
-type ApiStudentAchievementRow = {
-  id: string
-  student_id: string
-  achievement_id: string
-  granted_by: string
-  granted_by_role: Role
-  granted_at: string
-  status: 'granted' | 'removed'
-  note?: string | null
-  removed_at?: string | null
-}
 
 export function GrantPage() {
   const {
@@ -23,8 +11,6 @@ export function GrantPage() {
     setToast,
     state: { data, session },
   } = useAppState()
-
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
 
   const [studentSelection, setStudentSelection] = useState<{ key: string; ids: string[] }>({ key: '', ids: [] })
   const [selectedAchievementId, setSelectedAchievementId] = useState<string | null>(null)
@@ -63,50 +49,20 @@ export function GrantPage() {
     }
 
     try {
-      const res = await fetch(`${apiBase}/api/student-achievements/grant`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentIds: selectedStudentIds,
-          achievementId: selectedAchievementId,
-          grantedBy: session.displayName,
-          grantedByRole: session.role,
-          note: note.trim() || null,
-        }),
+      await grantStudentAchievements(session, {
+        studentIds: selectedStudentIds,
+        achievementId: selectedAchievementId,
+        note: note.trim() || null,
       })
 
-      if (!res.ok) {
-        setToast('Falha ao salvar concessao no servidor.')
-        return
-      }
+      const mapped = await fetchStudentAchievements(session)
 
-      // Refresh from backend so the student sees it too
-      const listRes = await fetch(`${apiBase}/api/student-achievements`)
-      if (listRes.ok) {
-        const json = await listRes.json()
-        const list: ApiStudentAchievementRow[] = Array.isArray(json?.studentAchievements)
-          ? (json.studentAchievements as ApiStudentAchievementRow[])
-          : []
-
-        const mapped: StudentAchievement[] = list.map((row) => ({
-          id: String(row.id),
-          studentId: String(row.student_id),
-          achievementId: String(row.achievement_id),
-          grantedBy: String(row.granted_by),
-          grantedByRole: row.granted_by_role,
-          grantedAt: String(row.granted_at),
-          status: row.status,
-          note: row.note ? String(row.note) : undefined,
-          removedAt: row.removed_at ? String(row.removed_at) : undefined,
-        }))
-
-        dispatch({
-          type: 'student-achievements-replace',
-          payload: {
-            studentAchievements: mapped,
-          },
-        })
-      }
+      dispatch({
+        type: 'student-achievements-replace',
+        payload: {
+          studentAchievements: mapped,
+        },
+      })
 
       setToast('Concessao salva.')
     } catch {

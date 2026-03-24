@@ -34,6 +34,7 @@ export function InviteAcceptPage() {
   }
 
   const className = data.classes.find((item) => item.id === invite.classId)?.name ?? 'Classe'
+  const canAccept = Boolean(session)
 
   return (
     <section className="screen-section">
@@ -43,8 +44,9 @@ export function InviteAcceptPage() {
           Convite para <strong>{maskEmail(invite.email)}</strong> entrar na classe <strong>{className}</strong>.
         </p>
         <p>Status atual: {invite.status}</p>
+        {!canAccept ? <p className="muted">Faca login para aceitar ou simular este convite com seguranca.</p> : null}
         <div className="hero-actions">
-          {invite.status === 'pending' ? (
+          {invite.status === 'pending' && canAccept ? (
             <button
               type="button"
               className="primary-button"
@@ -53,7 +55,11 @@ export function InviteAcceptPage() {
               Aceitar (simulado)
             </button>
           ) : null}
-          {session?.role === 'student' ? (
+          {!session ? (
+            <Link to="/login" className="secondary-button">
+              Fazer login
+            </Link>
+          ) : session.role === 'student' ? (
             <Link to="/album" className="secondary-button">
               Ir para meu album
             </Link>

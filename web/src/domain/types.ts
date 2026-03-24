@@ -12,6 +12,8 @@ export interface UserSession {
   role: Role
   userId: string
   displayName: string
+  email: string
+  authToken?: string
 }
 
 export interface Teacher {
@@ -60,6 +62,8 @@ export interface StudentAchievement {
   status: 'granted' | 'removed'
   note?: string
   removedAt?: string
+  removedBy?: string
+  removedByRole?: Role
 }
 
 export interface Invite {
@@ -76,6 +80,7 @@ export interface Invite {
 export interface AuditLog {
   id: string
   action: string
+  actorUserId: string
   actor: string
   actorRole: Role
   target: string

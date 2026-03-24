@@ -1,19 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
-import type { Role, StudentAchievement } from '../domain/types'
+import { fetchStudentAchievements, removeStudentAchievement } from '../lib/api'
 import { formatDate } from '../lib/utils'
 import { useAppState } from '../state/AppState'
-
-type ApiStudentAchievementRow = {
-  id: string
-  student_id: string
-  achievement_id: string
-  granted_by: string
-  granted_by_role: Role
-  granted_at: string
-  status: 'granted' | 'removed'
-  note?: string | null
-  removed_at?: string | null
-}
 
 export function StudentDetailPage() {
   const { studentId } = useParams()
@@ -25,13 +13,12 @@ export function StudentDetailPage() {
     setToast,
   } = useAppState()
 
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
-
   const student = data.students.find((item) => item.id === studentId)
 
   if (!session) return null
+  const activeSession = session
 
-  if (session.role === 'professor' && studentId && !visibleStudents.some((item) => item.id === studentId)) {
+  if (activeSession.role === 'professor' && studentId && !visibleStudents.some((item) => item.id === studentId)) {
     return (
       <section className="empty-state">
         <h3>Sem acesso a este aluno</h3>
@@ -62,33 +49,10 @@ export function StudentDetailPage() {
 
   async function removeGrant(grantId: string) {
     try {
-      const res = await fetch(`${apiBase}/api/student-achievements/${grantId}/remove`, { method: 'POST' })
-      if (!res.ok) {
-        setToast('Falha ao remover no servidor.')
-        return
-      }
+      await removeStudentAchievement(activeSession, grantId)
+      const mapped = await fetchStudentAchievements(activeSession)
 
-      const listRes = await fetch(`${apiBase}/api/student-achievements`)
-      if (listRes.ok) {
-        const json = await listRes.json()
-        const list: ApiStudentAchievementRow[] = Array.isArray(json?.studentAchievements)
-          ? (json.studentAchievements as ApiStudentAchievementRow[])
-          : []
-
-        const mapped: StudentAchievement[] = list.map((row) => ({
-          id: String(row.id),
-          studentId: String(row.student_id),
-          achievementId: String(row.achievement_id),
-          grantedBy: String(row.granted_by),
-          grantedByRole: row.granted_by_role,
-          grantedAt: String(row.granted_at),
-          status: row.status,
-          note: row.note ? String(row.note) : undefined,
-          removedAt: row.removed_at ? String(row.removed_at) : undefined,
-        }))
-
-        dispatch({ type: 'student-achievements-replace', payload: { studentAchievements: mapped } })
-      }
+      dispatch({ type: 'student-achievements-replace', payload: { studentAchievements: mapped } })
 
       setToast('Conquista removida.')
     } catch {
@@ -136,7 +100,8 @@ export function StudentDetailPage() {
         <div className="list-reset">
           {grants.map((grant) => {
             const achievement = data.achievements.find((item) => item.id === grant.achievementId)
-            const canRemove = session.role === 'professor' || session.role === 'director' || session.role === 'superadmin'
+            const canRemove =
+              activeSession.role === 'professor' || activeSession.role === 'director' || activeSession.role === 'superadmin'
             return (
               <div key={grant.id} className="line-item">
                 <div>

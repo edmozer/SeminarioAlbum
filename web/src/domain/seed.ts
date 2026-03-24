@@ -17,10 +17,10 @@ function lastMonth(day: number, hour = 8): string {
 }
 
 export const sessions: Record<string, UserSession> = {
-  superadmin: { role: 'superadmin', userId: 'u-admin', displayName: 'Admin Sistema' },
-  director: { role: 'director', userId: 'u-director-1', displayName: 'Dir Roberto Alves' },
-  professor: { role: 'professor', userId: 'u-teacher-1', displayName: 'Prof Ana Silva' },
-  student: { role: 'student', userId: 's-1', displayName: 'Julia Martins' },
+  superadmin: { role: 'superadmin', userId: 'u-admin', displayName: 'Admin Sistema', email: 'admin@seminario.com' },
+  director: { role: 'director', userId: 'u-director-1', displayName: 'Dir Roberto Alves', email: 'director@seminario.com' },
+  professor: { role: 'professor', userId: 'u-teacher-1', displayName: 'Prof Ana Silva', email: 'professor@seminario.com' },
+  student: { role: 'student', userId: 's-1', displayName: 'Julia Martins', email: 'student@seminario.com' },
 }
 
 export const seedData: AppData = {
@@ -169,6 +169,7 @@ export const seedData: AppData = {
     {
       id: 'log-1',
       action: 'grant_achievement',
+      actorUserId: 'u-teacher-1',
       actor: 'Prof Ana Silva',
       actorRole: 'professor',
       target: 'Julia Martins',
@@ -178,6 +179,7 @@ export const seedData: AppData = {
     {
       id: 'log-2',
       action: 'invite_created',
+      actorUserId: 'u-teacher-1',
       actor: 'Prof Ana Silva',
       actorRole: 'professor',
       target: 'novo.aluno@email.com',
